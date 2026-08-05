@@ -8,6 +8,27 @@ Flux separates user authorization from Azure service authorization.
 | Flux → Azure Resource Graph and Advisor | App Service managed identity | `ManagedIdentityCredential` and Azure RBAC |
 | Flux → Cost Management | App Service managed identity | `ManagedIdentityCredential` and `Microsoft.CostManagement/*/read` |
 
+Three identities are involved, and they never borrow each other's permissions:
+the signed-in user authorizes the request, the app's own managed identity reads
+Azure, and a separate deployment identity federated to the pipeline is the only
+one that can deploy. No client secret exists in any of the three paths.
+
+```mermaid
+flowchart LR
+    User["Entra user"] --> Entra["Microsoft Entra ID"]
+    Entra --> EasyAuth["App Service Authentication"]
+    EasyAuth -->|"X-MS-CLIENT-PRINCIPAL"| API["Flux API"]
+    API --> Roles["Flux.Reader or Flux.Admin"]
+
+    AppMI["App Service managed identity"] --> ARM["Azure management token"]
+    ARM --> ARG["Resource Graph · Advisor · Policy"]
+    ARM --> Cost["Cost Management"]
+    RBAC["Azure RBAC assignments"] -.-> ARM
+
+    PipelineMI["Pipeline identity"] --> WIF["Workload identity federation"]
+    WIF --> Deploy["App Service deployment scope"]
+```
+
 ## 1. Configure Microsoft Entra app roles
 
 On the app registration used by App Service Authentication, define:

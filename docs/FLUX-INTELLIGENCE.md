@@ -41,6 +41,41 @@ endpoint, or arbitrary query interface. It can invoke only declared server-side
 tools. Each tool validates and bounds its arguments before calling existing Flux
 application services.
 
+<details open>
+<summary>Diagram: one Ask Flux request, end to end</summary>
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Ask Flux panel
+    participant API as Flux Intelligence API
+    participant Tools as Governed tools
+    participant Data as DuckDB / report services
+    participant Model as Configured AI service
+
+    User->>UI: Question
+    UI->>API: POST /api/intelligence/chat
+    API->>API: Authorize Flux.Reader · check spend ceiling
+    API->>Model: Question + declared tool schemas
+    loop Bounded by FLUX_AI_MAX_TOOL_CALLS
+        Model-->>API: Requested tool + arguments
+        API->>Tools: Validate and bound arguments
+        Tools->>Data: Governed query
+        Data-->>Tools: Rows with coverage metadata
+        Tools-->>Model: Tool result marked as data
+    end
+    Model-->>API: Structured JSON response
+    API->>API: Validate contract · score quality 0-100
+    API->>Data: Retain transcript and usage metadata
+    API-->>UI: Summary, blocks, facts, limitations, sources
+    UI->>API: POST /api/intelligence/performance
+```
+
+</details>
+
+The model never appears between `Tools` and `Data`: it names a tool, and the
+server decides whether that call is legal and what it may touch.
+
 The existing `Flux.Reader` application role is required. `Flux.Admin` inherits
 read access. No assistant-specific user authorization model is introduced.
 

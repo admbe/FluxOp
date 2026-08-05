@@ -1,0 +1,168 @@
+/*
+ * Flux design tokens.
+ *
+ * Brand values to confirm:
+ *   light primary  12 166 120  (#0ca678)
+ *   dark primary   94 230 172  (#5ee6ac)
+ *   light gold     168 100 8   (#a86408)
+ *   dark gold      255 195 111 (#ffc36f)
+ *
+ * Colors are raw RGB channels so consumers can use
+ * rgb(var(--token) / <alpha>) without duplicating variants.
+ */
+:root {
+  color-scheme: light;
+
+  --primary: 12 166 120;
+  --primary-hover: 10 145 106;
+  --primary-light: 223 247 238;
+  --primary-dark: 6 95 70;
+  --gold: 168 100 8;
+  --gold-light: 255 244 214;
+  --gold-dark: 120 70 4;
+
+  --gray-50: 248 250 249;
+  --gray-100: 241 245 243;
+  --gray-200: 225 232 228;
+  --gray-300: 196 208 202;
+  --gray-400: 145 161 153;
+  --gray-500: 105 122 114;
+  --gray-600: 75 92 84;
+  --gray-700: 52 68 60;
+  --gray-800: 31 45 38;
+  --gray-900: 19 31 25;
+  --gray-950: 8 16 12;
+
+  --background: 252 253 252;
+  --sidebar: 247 249 248;
+  --surface: 255 255 255;
+  --surface-raised: 255 255 255;
+  --surface-soft: 241 245 243;
+  --input-bg: 255 255 255;
+  --code-bg: 242 246 244;
+  --border: 220 229 224;
+  --border-bright: 189 206 197;
+  --text: 22 34 29;
+  --text-muted: 104 122 114;
+  --text-muted-bright: 70 89 81;
+  --accent-contrast: 255 255 255;
+  --page-glow: 12 166 120;
+  --scrim: 8 16 12;
+  --shadow-color: 31 57 46;
+  --white: 255 255 255;
+
+  --success: 12 166 120;
+  --warning: 168 100 8;
+  --danger: 200 63 93;
+  --info: 57 120 215;
+  --purple: 128 80 199;
+  /* Signal accent for the logo pulse; matches the marketing site's lime. */
+  --lime: 101 163 13;
+
+  /* Categorical series palette. Slot order is part of the contract: only
+     adjacent slots must stay distinguishable under color-vision deficiency,
+     so consumers assign slots in sequence and never skip or cycle. Values
+     are validated (lightness band, chroma floor, CVD separation, contrast
+     vs surface) -- re-run a palette validator before changing any slot, and
+     keep series colors distinct from the status tokens above so a series
+     never impersonates good/warning/danger. */
+  --chart-1: 12 166 120;
+  --chart-2: 57 120 215;
+  --chart-3: 146 96 10;
+  --chart-4: 123 69 207;
+  --chart-5: 203 67 104;
+  --chart-6: 15 139 177;
+  --chart-7: 95 143 47;
+  --chart-8: 92 103 207;
+  --chart-other: 145 161 153;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 13px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Type scale. Consolidates ~20 ad hoc sizes (8-40px, many in 0.5px
+     increments) that accumulated across components with no shared system. */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-4xl: clamp(28px, 3vw, 40px);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --primary: 94 230 172;
+  --primary-hover: 113 239 187;
+  --primary-light: 24 61 47;
+  --primary-dark: 44 195 137;
+  --gold: 255 195 111;
+  --gold-light: 68 50 25;
+  --gold-dark: 204 139 50;
+
+  --gray-50: 237 245 241;
+  --gray-100: 216 229 222;
+  --gray-200: 175 194 184;
+  --gray-300: 137 155 146;
+  --gray-400: 104 123 113;
+  --gray-500: 75 94 84;
+  --gray-600: 52 73 62;
+  --gray-700: 35 57 46;
+  --gray-800: 24 42 33;
+  --gray-900: 14 28 21;
+  --gray-950: 5 12 9;
+
+  --background: 5 12 9;
+  --sidebar: 7 16 12;
+  --surface: 10 22 16;
+  --surface-raised: 14 29 22;
+  --surface-soft: 20 38 29;
+  --input-bg: 7 18 13;
+  --code-bg: 5 15 10;
+  --border: 31 52 43;
+  --border-bright: 48 78 65;
+  --text: 237 245 241;
+  --text-muted: 130 147 140;
+  --text-muted-bright: 169 184 178;
+  --accent-contrast: 7 19 15;
+  --page-glow: 47 128 91;
+  --scrim: 1 7 4;
+  --shadow-color: 0 0 0;
+
+  --success: 94 230 172;
+  --warning: 255 195 111;
+  --danger: 255 120 148;
+  --info: 125 174 255;
+  --purple: 201 148 255;
+  --lime: 183 255 56;
+
+  /* Dark-mode series steps are selected for the dark surface (deeper than
+     the light slots' pastel complements), not an automatic flip; same
+     validation contract as the light palette. */
+  --chart-1: 15 168 118;
+  --chart-2: 79 142 232;
+  --chart-3: 176 123 26;
+  --chart-4: 154 102 224;
+  --chart-5: 216 83 117;
+  --chart-6: 30 157 196;
+  --chart-7: 116 166 55;
+  --chart-8: 122 132 234;
+  --chart-other: 104 123 113;
+}

@@ -1,0 +1,30 @@
+azure-identity>=1.23,<2
+azure-storage-blob>=12.26,<13
+# Exact-pinned, not a range: DuckDB is a stateful on-disk storage engine,
+# and the mutable flux.duckdb file is written across many separate deploys
+# over its lifetime. A floating range lets consecutive deploys silently
+# resolve to different patch builds, and a newer engine checkpointing
+# structures an older one wrote can corrupt the file outright --
+# "TransactionException: ... invalid node type for TransformToDeprecated"
+# is DuckDB's own signature for exactly this. Confirmed as the likely root
+# cause of repeated production corruption incidents (2026-07-26, -29, -30 x2)
+# that were each patched as isolated recoveries without pinning this.
+# 1.5.1 additionally raises an internal vector-index assertion in the
+# governed opportunity/valuation CTEs, ruling it out separately. Bump this
+# deliberately, verify the full reporting suite, and take a fresh approved
+# snapshot immediately after -- never let it float.
+duckdb==1.4.5
+filelock>=3.18,<4
+# Governed XLSX exports with provenance metadata sheets.
+openpyxl>=3.1,<4
+# Keep the framework pair explicit. FastAPI imports internal helpers from its
+# matching dependency tree; unbounded upgrades can produce a mixed vendored
+# tree when a package cache is reused by a build agent.
+fastapi==0.116.1
+pydantic==2.11.7
+pytz>=2025.1,<2027
+pg8000>=1.31,<2
+sqlalchemy>=2.0,<3
+# App Service supplies the event loop; avoid the optional uvloop wheel because
+# its ABI/API can differ from the Python runtime image and prevent startup.
+uvicorn==0.35.0

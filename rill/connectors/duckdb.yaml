@@ -1,0 +1,6 @@
+type: connector
+driver: duckdb
+managed: true
+allow_host_access: true
+init_sql: |
+  ATTACH '../data/flux.duckdb' AS flux (READ_ONLY);

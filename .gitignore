@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+.tmp/
+in/cost-management/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Runtime data
+data/*.duckdb
+data/*.duckdb.wal
+data/*.tmp
+
+# Locally preserved legacy application
+Archived/
+
+# Local environment
+.env
+.env.*
+!.env.example
+Provider.txt
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

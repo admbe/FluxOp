@@ -1,0 +1,628 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  pythonVersion: "3.12"
+  nodeVersion: "22.x"
+  azureServiceConnection: "FluxFinOps-Prod-WIF"
+  webAppName: "FluxFinOps"
+  webAppHostName: "CHANGEME.azurewebsites.net"
+  webAppScmHostName: "CHANGEME.scm.azurewebsites.net"
+  resourceGroupName: "CHANGEME-rg"
+  artifactName: "fluxfinops"
+
+stages:
+  - stage: Build
+    displayName: Build and test
+    jobs:
+      - job: BuildApplication
+        displayName: Build FluxFinOps
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: UseNode@1
+            displayName: Use Node.js $(nodeVersion)
+            inputs:
+              version: $(nodeVersion)
+
+          - script: npm ci
+            displayName: Install frontend dependencies
+            workingDirectory: frontend
+
+          - script: npm run lint
+            displayName: Type-check frontend
+            workingDirectory: frontend
+
+          - script: npm run build
+            displayName: Build React frontend
+            workingDirectory: frontend
+
+          - task: UsePythonVersion@0
+            displayName: Use Python $(pythonVersion)
+            inputs:
+              versionSpec: $(pythonVersion)
+
+          - script: |
+              python -m pip install --upgrade pip
+              python -m pip install -r requirements.txt
+              python -m unittest discover -s tests -v
+              python -m compileall -q app.py api
+              # tests/ never imports api.main, and compileall only checks syntax
+              # -- neither catches a commit where main.py references a name
+              # (a model class, a database method) that was never actually
+              # committed elsewhere. This exact gap let a broken commit reach
+              # production on 2026-08-03. Importing the real app here fails
+              # loudly on that class of break before it ever reaches Deploy.
+              python -c "from api.main import app"
+            displayName: Test Python API
+
+          - task: CopyFiles@2
+            displayName: Stage application files
+            inputs:
+              SourceFolder: $(Build.SourcesDirectory)
+              Contents: |
+                api/**
+                App_Data/**
+                app.py
+                README.md
+                requirements.txt
+                scripts/migrate_operational_state.py
+                frontend/dist/**
+                docs/FEATURE-CHECKLIST.md
+                docs/REPORTING-PARITY.md
+                docs/architecture.md
+                docs/FLUX-INTELLIGENCE.md
+                docs/VIRTUAL-TAGS.md
+                docs/VIRTUAL-TAG-PRODUCTION-DEPLOYMENT.md
+              TargetFolder: $(Build.ArtifactStagingDirectory)/app
+
+          - script: |
+              # The artifact directory can be reused by hosted-agent tasks. Clear
+              # the vendored tree first so a package upgrade cannot leave a mixed
+              # FastAPI module (for example routing.py from one release with
+              # dependencies/utils.py from another) that fails at App Service startup.
+              rm -rf "$(Build.ArtifactStagingDirectory)/app/.python_packages"
+              python -m pip install \
+                --target "$(Build.ArtifactStagingDirectory)/app/.python_packages/lib/site-packages" \
+                --platform manylinux_2_28_x86_64 \
+                --platform manylinux2014_x86_64 \
+                --platform manylinux_2_17_x86_64 \
+                --implementation cp \
+                --python-version 3.12 \
+                --abi cp312 \
+                --only-binary=:all: \
+                -r requirements.txt
+            displayName: Vendor portable production Python dependencies
+
+          - task: ArchiveFiles@2
+            displayName: Create deployment package
+            inputs:
+              rootFolderOrFile: $(Build.ArtifactStagingDirectory)/app
+              includeRootFolder: false
+              archiveType: zip
+              archiveFile: $(Build.ArtifactStagingDirectory)/$(artifactName).zip
+              replaceExistingArchive: true
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish deployment artifact
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/$(artifactName).zip
+              artifact: $(artifactName)
+
+  - stage: Deploy
+    displayName: Deploy to App Service
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployProduction
+        displayName: Deploy FluxFinOps
+        environment: FluxFinOps-Production
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+
+                - task: AzureCLI@2
+                  displayName: Quiesce DuckDB writers
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      scm="https://$(webAppScmHostName)"
+                      marker="${scm}/api/vfs/data/flux.duckdb.deployment-quiesce"
+                      command="${scm}/api/command"
+
+                      printf 'deployment=%s\n' "$(Build.BuildId)" |
+                        curl --fail --silent --show-error \
+                          --request PUT \
+                          --header "Authorization: Bearer ${token}" \
+                          --header "If-Match: *" \
+                          --data-binary @- \
+                          "${marker}"
+
+                      echo "Restarting App Service to stop checkpointed jobs."
+                      az webapp restart \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)"
+
+                      # The lock and quiesce marker paths must match the app's
+                      # FLUX_DUCKDB_PATH. Before the migration step runs, the
+                      # DB may still be at the old wwwroot path; check both.
+                      lock_payload='{"command":"/bin/bash -lc \"for p in /home/data/flux.duckdb.deployment.lock /home/site/wwwroot/data/flux.duckdb.deployment.lock; do if [ -e \\\"${p}\\\" ]; then flock -xn \\\"${p}\\\" -c true && exit 0; fi; done; exit 0\"","dir":"/home/site/wwwroot"}'
+                      for attempt in {1..120}; do
+                        # Transient Kudu errors must retry, not abort.
+                        response="$(curl --fail --silent --show-error \
+                          --request POST \
+                          --header "Authorization: Bearer ${token}" \
+                          --header "Content-Type: application/json" \
+                          --data "${lock_payload}" \
+                          "${command}" || true)"
+                        if [ "$(jq -r '.ExitCode' <<<"${response}" 2>/dev/null)" = "0" ]; then
+                          echo "All governed DuckDB jobs are quiesced."
+                          exit 0
+                        fi
+                        echo "Waiting for active DuckDB jobs (${attempt}/120)."
+                        sleep 5
+                      done
+                      echo "DuckDB jobs did not quiesce within ten minutes."
+                      exit 1
+
+                - task: AzureCLI@2
+                  displayName: Migrate DuckDB to persistent storage and enable runFromPackage
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      scm="https://$(webAppScmHostName)"
+                      command="${scm}/api/command"
+
+                      # The DuckDB file was at /home/site/wwwroot/data/flux.duckdb
+                      # (the config default when FLUX_DUCKDB_PATH is unset). ZIP
+                      # Deploy rsync cannot overwrite files locked by the running
+                      # Python process. Move the database to /home/data/ (persistent
+                      # storage, outside wwwroot) and switch to runFromPackage so
+                      # Kudu mounts the ZIP read-only without extraction/rsync.
+
+                      payload='{"command":"/bin/bash -lc \"mkdir -p /home/data && if [ -f /home/site/wwwroot/data/flux.duckdb ]; then cp -n /home/site/wwwroot/data/flux.duckdb /home/data/flux.duckdb 2>/dev/null; cp -n /home/site/wwwroot/data/flux.duckdb.deployment.lock /home/data/flux.duckdb.deployment.lock 2>/dev/null; echo migrated; else echo no-migration-needed; fi; ls -la /home/data/flux.duckdb 2>/dev/null || echo db-not-found\"","dir":"/home/site/wwwroot"}'
+                      response="$(curl --fail --silent --show-error \
+                        --request POST \
+                        --header "Authorization: Bearer ${token}" \
+                        --header "Content-Type: application/json" \
+                        --data "${payload}" \
+                        "${command}")"
+                      echo "$response" | jq -r '.Output'
+
+                      az webapp config appsettings set \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --settings \
+                          FLUX_DUCKDB_PATH="/home/data/flux.duckdb" \
+                          WEBSITE_RUN_FROM_PACKAGE="1" \
+                        >/dev/null
+                      echo "Set FLUX_DUCKDB_PATH=/home/data/flux.duckdb and WEBSITE_RUN_FROM_PACKAGE=1"
+
+                - task: AzureWebApp@1
+                  displayName: Deploy FluxFinOps
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    appType: webAppLinux
+                    appName: $(webAppName)
+                    resourceGroupName: $(resourceGroupName)
+                    runtimeStack: PYTHON|3.12
+                    startUpCommand: python app.py
+                    package: $(Pipeline.Workspace)/$(artifactName)/$(artifactName).zip
+                    deploymentMethod: zipDeploy
+                    # Do NOT use the appSettings parameter here. It replaces ALL
+                    # app settings on every deploy, wiping manually-configured
+                    # Key Vault references (FLUX_DEEPSEEK_API_KEY, LM_BEARER_TOKEN)
+                    # that must not be stored in the pipeline YAML. Non-secret
+                    # settings are applied additively by the step below.
+
+                - task: AzureCLI@2
+                  displayName: Apply non-secret app settings (additive)
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      # az webapp config appsettings set is additive: it updates
+                      # only the named keys and preserves all others (including
+                      # Key Vault references configured out-of-band).
+                      # FLUX_AI_PROVIDER must name a provider whose API-key Key
+                      # Vault reference exists (deepseek today). Switching to
+                      # "openrouter" without first populating
+                      # FLUX_OPENROUTER_API_KEY breaks Flux Intelligence on
+                      # every deploy with "not configured".
+                      az webapp config appsettings set \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --settings \
+                          PYTHONPATH="/home/site/wwwroot:/home/site/wwwroot/.python_packages/lib/site-packages" \
+                          PYTHONUNBUFFERED="1" \
+                          FLUX_DUCKDB_PATH="/home/data/flux.duckdb" \
+                          WEBSITE_RUN_FROM_PACKAGE="1" \
+                          FLUX_SYNC_WORKER_MODE="external" \
+                          FLUX_COST_MANAGEMENT_MAX_RETRIES="5" \
+                          FLUX_COST_MANAGEMENT_REQUEST_DELAY_SECONDS="20" \
+                          FLUX_COST_MANAGEMENT_CLIENT_TYPE="FluxFinOps" \
+                          FLUX_COST_HISTORY_CHUNK_DAYS="3" \
+                          FLUX_DUCKDB_MEMORY_LIMIT="1536MB" \
+                          FLUX_DUCKDB_TEMP_DIRECTORY="/home/data/.duckdb-tmp" \
+                          FLUX_DUCKDB_MAX_TEMP_DIRECTORY_SIZE="8GB" \
+                          FLUX_ANALYTICS_STAGING_DIRECTORY="/home/data/staging" \
+                          FLUX_COST_DETAILS_BACKFILL_ENABLED="true" \
+                          FLUX_COST_DETAILS_MAX_REPORTS_PER_RUN="4" \
+                          FLUX_COST_DETAILS_CURRENT_REFRESH_DAYS="7" \
+                          FLUX_INTELLIGENCE_AI_ENABLED="true" \
+                          FLUX_AI_PROVIDER="deepseek" \
+                          FLUX_OPENROUTER_CHAT_MODEL="google/gemini-2.5-flash-lite" \
+                          FLUX_OPENROUTER_BENCHMARK_MODEL="openai/gpt-4.1-mini" \
+                          FLUX_FOUNDRY_ENDPOINT="https://CHANGEME.services.ai.azure.com/models" \
+                          FLUX_AI_TRANSCRIPT_RETENTION_DAYS="30" \
+                          FLUX_AI_BUDGET_USD="50" \
+                          FLUX_AI_STOP_AT_USD="50" \
+                          FLUX_AI_USAGE_RETENTION_DAYS="30" \
+                          FLUX_AI_MAX_TOOL_CALLS="12" \
+                          FLUX_AI_TOOL_CACHE_SECONDS="30" \
+                          FLUX_AMA_LOG_ANALYTICS_WORKSPACE_ID="00000000-0000-0000-0000-000000000000" \
+                          FLUX_WIKI_BASE_URL="https://wiki.example.com" \
+                        >/dev/null
+                      echo "Applied non-secret app settings (additive; Key Vault references preserved)."
+                      # FLUX_WIKI_API_TOKEN is deliberately not set here -- it is a
+                      # secret (a Wiki.js API token from Admin > API Access) and must
+                      # be provisioned as a Key Vault reference out-of-band, exactly
+                      # like FLUX_DEEPSEEK_API_KEY and LM_BEARER_TOKEN above. Until it
+                      # is set, search_documentation silently searches only the
+                      # repository allowlist.
+
+                - task: AzureCLI@2
+                  displayName: Cut over operational state to PostgreSQL
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -Eeuo pipefail
+
+                      enabled="$(az webapp config appsettings list \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --query "[?name=='FLUX_OPERATIONAL_DATABASE_ENABLED'].value | [0]" \
+                        --output tsv | tr '[:upper:]' '[:lower:]')"
+                      if [ "${enabled}" = "true" ]; then
+                        echo "PostgreSQL operational control plane is already enabled."
+                        exit 0
+                      fi
+
+                      connection_count="$(az webapp config appsettings list \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --query "length([?name=='FLUX_OPERATIONAL_DATABASE_URL' && length(value) > \`0\`])" \
+                        --output tsv)"
+                      if [ "${connection_count}" != "1" ]; then
+                        echo "FLUX_OPERATIONAL_DATABASE_URL is not configured."
+                        exit 1
+                      fi
+
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      scm="https://$(webAppScmHostName)"
+                      migration_job_url="${scm}/api/triggeredwebjobs/flux-operational-migration"
+                      subscription_id="$(az account show \
+                        --query id \
+                        --output tsv)"
+                      previous_run_id="$(curl --fail --silent --show-error \
+                        --header "Authorization: Bearer ${token}" \
+                        "${migration_job_url}" | \
+                        jq -r '.latest_run.id // empty')"
+                      management_job_url="https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/$(resourceGroupName)/providers/Microsoft.Web/sites/$(webAppName)/triggeredwebjobs/flux-operational-migration/run?api-version=2022-03-01"
+                      az rest \
+                        --method post \
+                        --url "${management_job_url}" \
+                        --output none
+
+                      migration_output=""
+                      for attempt in $(seq 1 60); do
+                        # Transient Kudu errors must retry, not abort.
+                        migration_job="$(curl --fail --silent --show-error \
+                          --header "Authorization: Bearer ${token}" \
+                          "${migration_job_url}" || true)"
+                        run_id="$(jq -r '.latest_run.id // empty' \
+                          <<<"${migration_job}")"
+                        run_status="$(jq -r '.latest_run.status // empty' \
+                          <<<"${migration_job}")"
+                        if [ -n "${run_id}" ] && \
+                           [ "${run_id}" != "${previous_run_id}" ]; then
+                          if [ "${run_status}" = "Success" ]; then
+                            output_url="$(jq -r '.latest_run.output_url' \
+                              <<<"${migration_job}")"
+                            migration_output="$(curl \
+                              --fail --silent --show-error \
+                              --header "Authorization: Bearer ${token}" \
+                              "${output_url}" | \
+                              sed -n \
+                                's/^.*\({"status":"succeeded".*}\)$/\1/p' | \
+                              tail -n 1)"
+                            break
+                          fi
+                          if [ "${run_status}" = "Failed" ] || \
+                             [ "${run_status}" = "Aborted" ]; then
+                            echo "Operational migration WebJob ${run_status}."
+                            exit 1
+                          fi
+                        fi
+                        echo "Waiting for operational migration (${attempt}/60)."
+                        sleep 2
+                      done
+                      if [ -z "${migration_output}" ]; then
+                        echo "Operational migration did not produce validation output."
+                        exit 1
+                      fi
+                      jq -e '.status == "succeeded"' \
+                        <<<"${migration_output}" >/dev/null
+                      migrated_tables="$(jq -r '.tables | length' \
+                        <<<"${migration_output}")"
+                      echo "Validated ${migrated_tables} PostgreSQL operational tables."
+
+                      rollback_needed="false"
+                      rollback() {
+                        status=$?
+                        if [ "${rollback_needed}" = "true" ]; then
+                          echo "PostgreSQL readiness failed; restoring DuckDB operational state."
+                          az webapp config appsettings set \
+                            --resource-group "$(resourceGroupName)" \
+                            --name "$(webAppName)" \
+                            --settings FLUX_OPERATIONAL_DATABASE_ENABLED=false \
+                            >/dev/null
+                          az webapp restart \
+                            --resource-group "$(resourceGroupName)" \
+                            --name "$(webAppName)"
+                        fi
+                        exit "${status}"
+                      }
+                      trap rollback ERR
+
+                      az webapp config appsettings set \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --settings FLUX_OPERATIONAL_DATABASE_ENABLED=true \
+                        >/dev/null
+                      rollback_needed="true"
+                      az webapp restart \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)"
+
+                      worker_url="${scm}/api/continuouswebjobs/flux-sync-worker"
+                      worker_status=""
+                      for attempt in $(seq 1 36); do
+                        state="$(az webapp show \
+                          --resource-group "$(resourceGroupName)" \
+                          --name "$(webAppName)" \
+                          --query state \
+                          --output tsv)"
+                        worker="$(curl --fail --silent --show-error \
+                          --header "Authorization: Bearer ${token}" \
+                          "${worker_url}" || true)"
+                        worker_status="$(jq -r '.status // empty' \
+                          <<<"${worker}" 2>/dev/null || true)"
+                        if [ "${state}" = "Running" ] && \
+                           { [ "${worker_status}" = "Running" ] || \
+                             [ "${worker_status}" = "Initializing" ]; }; then
+                          rollback_needed="false"
+                          trap - ERR
+                          echo "PostgreSQL operational cutover is live; worker is ${worker_status}."
+                          exit 0
+                        fi
+                        echo "Waiting for PostgreSQL-backed app and worker (${attempt}/36)."
+                        sleep 5
+                      done
+                      echo "PostgreSQL-backed worker did not become ready."
+                      false
+
+                - task: AzureCLI@2
+                  displayName: Resume DuckDB writers
+                  condition: always()
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      marker="https://$(webAppScmHostName)/api/vfs/data/flux.duckdb.deployment-quiesce"
+                      status="$(curl --silent --show-error \
+                        --output /dev/null \
+                        --write-out '%{http_code}' \
+                        --request DELETE \
+                        --header "Authorization: Bearer ${token}" \
+                        --header "If-Match: *" \
+                        "${marker}")"
+                      if [ "${status}" != "200" ] && [ "${status}" != "204" ] && [ "${status}" != "404" ]; then
+                        echo "Unexpected marker cleanup HTTP status: ${status}"
+                        exit 1
+                      fi
+                      echo "DuckDB scheduled work resumed."
+
+                - bash: |
+                    set -euo pipefail
+                    url="https://$(webAppHostName)/api/health"
+                    for attempt in {1..24}; do
+                      status="$(curl --silent --show-error \
+                        --output /dev/null \
+                        --write-out '%{http_code}' \
+                        --max-time 15 \
+                        "$url" || true)"
+                      if [ "$status" = "302" ] || [ "$status" = "401" ]; then
+                        echo "FluxFinOps is running behind Microsoft Entra authentication."
+                        exit 0
+                      fi
+                      echo "Health attempt ${attempt}: HTTP ${status:-unavailable}"
+                      sleep 5
+                    done
+                    echo "FluxFinOps did not become healthy within two minutes."
+                    exit 1
+                  displayName: Verify production health
+
+                - task: AzureCLI@2
+                  displayName: Verify production operational readiness
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      site="$(az webapp show \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --output json)"
+                      test "$(jq -r '.state' <<<"${site}")" = "Running"
+                      test "$(jq -r '.httpsOnly' <<<"${site}")" = "true"
+                      principal="$(jq -r '.identity.principalId // empty' <<<"${site}")"
+                      test -n "${principal}"
+
+                      worker_mode="$(az webapp config appsettings list \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(webAppName)" \
+                        --query "[?name=='FLUX_SYNC_WORKER_MODE'].value | [0]" \
+                        --output tsv)"
+                      test "${worker_mode}" = "external"
+
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      worker_url="https://$(webAppScmHostName)/api/continuouswebjobs/flux-sync-worker"
+                      worker_status=""
+                      # The sync worker is a singleton: with more than one
+                      # App Service instance, only one instance runs it and
+                      # the others correctly report InactiveInstance. The SCM
+                      # endpoint answers from an arbitrary instance, so
+                      # InactiveInstance is a healthy steady state, not a
+                      # failure — it still proves the job is deployed and
+                      # registered.
+                      for attempt in $(seq 1 24); do
+                        # Kudu recycles briefly after deployment; a transient
+                        # HTTP error must retry, not abort under set -e.
+                        worker="$(curl --fail --silent --show-error \
+                          --header "Authorization: Bearer ${token}" \
+                          "${worker_url}" || true)"
+                        worker_status="$(jq -r '.status // empty' \
+                          <<<"${worker}" 2>/dev/null || true)"
+                        case "${worker_status}" in
+                          Running|Initializing|InactiveInstance)
+                            break
+                            ;;
+                        esac
+                        echo "Continuous sync worker is ${worker_status:-unavailable}; retrying (${attempt}/24)."
+                        sleep 5
+                      done
+                      case "${worker_status}" in
+                        Running|Initializing|InactiveInstance) ;;
+                        *)
+                          echo "Continuous sync worker did not become ready."
+                          exit 1
+                          ;;
+                      esac
+                      echo "Continuous sync worker is registered (${worker_status})."
+                      echo "App Service is running with HTTPS, managed identity, external worker mode, and a live sync worker."
+
+                - task: AzureCLI@2
+                  displayName: Resume checkpointed cost history
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      token="$(az account get-access-token \
+                        --resource https://management.azure.com/ \
+                        --query accessToken \
+                        --output tsv)"
+                      # Kudu can return a transient 5xx while its container
+                      # recycles after deployment. Retry before giving up.
+                      status=""
+                      for attempt in 1 2 3 4 5 6; do
+                        status="$(curl --silent --show-error \
+                          --output /dev/null \
+                          --write-out '%{http_code}' \
+                          --max-time 30 \
+                          --request POST \
+                          --header "Authorization: Bearer ${token}" \
+                          "https://$(webAppScmHostName)/api/triggeredwebjobs/flux-cost-history/run" \
+                          || echo "000")"
+                        case "${status}" in
+                          200|202|409)
+                            echo "Cost-history recovery is running or already active (HTTP ${status})."
+                            exit 0
+                            ;;
+                        esac
+                        echo "Kudu returned HTTP ${status}; retrying (${attempt}/6)."
+                        sleep 10
+                      done
+                      # Resuming here is an optimization, not a correctness
+                      # requirement: cost-history scopes are checkpointed in
+                      # PostgreSQL and the job also runs on its own schedule.
+                      # A deployed, healthy release must not be failed because
+                      # this best-effort nudge could not be delivered.
+                      echo "##vso[task.logissue type=warning]Could not resume cost history (last HTTP ${status}). The scheduled cost-history run will resume from its checkpoints."
+
+                - bash: |
+                    set -euo pipefail
+                    tag_name="refs/tags/flux-postgres-operational-complete"
+                    # URL-encode the team project name (contains a space).
+                    project_encoded="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$(System.TeamProject)")"
+                    refs_url="$(System.CollectionUri)${project_encoded}/_apis/git/repositories/$(Build.Repository.ID)/refs"
+                    existing="$(curl --fail --silent --show-error \
+                      --header "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                      "${refs_url}?filter=tags/flux-postgres-operational-complete&api-version=7.1")"
+                    if [ "$(jq -r '.count' <<<"${existing}")" = "1" ]; then
+                      echo "PostgreSQL cutover completion tag already exists."
+                      exit 0
+                    fi
+                    payload="$(jq -n \
+                      --arg name "${tag_name}" \
+                      --arg commit "$(Build.SourceVersion)" \
+                      '[{name: $name, oldObjectId: "0000000000000000000000000000000000000000", newObjectId: $commit}]')"
+                    result="$(curl --fail --silent --show-error \
+                      --request POST \
+                      --header "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                      --header "Content-Type: application/json" \
+                      --data "${payload}" \
+                      "${refs_url}?api-version=7.1")"
+                    test "$(jq -r '.value[0].success' <<<"${result}")" = "true"
+                    echo "Published PostgreSQL cutover completion tag."
+                  displayName: Publish cutover completion marker
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)

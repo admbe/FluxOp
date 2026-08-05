@@ -1,0 +1,15 @@
+compiler: rillv1
+display_name: Flux governed analytics
+description: Optional read-only exploration of Flux cost and anomaly data.
+olap_connector: duckdb
+
+models:
+  materialize: true
+
+metrics_views:
+  first_day_of_week: 1
+
+env:
+  rill.interactive_sql_row_limit: 10000
+  rill.ai.require_time_range: true
+  rill.ai.max_time_range_days: 366

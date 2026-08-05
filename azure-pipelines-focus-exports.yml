@@ -1,0 +1,56 @@
+# Ensures every Flux-configured subscription has a FOCUS v1.0 daily cost
+# export configured. Runs monthly as a catch-all for newly onboarded
+# subscriptions; scripts/provision_focus_exports.ps1 is idempotent and skips
+# any subscription that already has the export.
+#
+# Deliberately a separate pipeline from azure-pipelines.yml, not a stage
+# inside it:
+#   - trigger: none / no pr: block means a push to main never runs this,
+#     and this schedule never triggers a rebuild or redeploy of production.
+#   - Uses its own service connection (flux-focus-export-provisioner) rather
+#     than FluxFinOps-Prod-WIF, so Cost Management Contributor -- a billing
+#     write permission across every subscription -- never lives on the
+#     credential used to deploy the production app. See
+#     scripts/provision_focus_export_identity.ps1 for that identity's setup.
+
+trigger: none
+pr: none
+
+schedules:
+  - cron: "0 6 1 * *" # 06:00 UTC on the 1st of every month
+    displayName: Monthly FOCUS export check
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  focusExportServiceConnection: "flux-focus-export-provisioner"
+
+stages:
+  - stage: EnsureFocusExports
+    displayName: Ensure FOCUS exports exist
+    jobs:
+      - job: ProvisionFocusExports
+        displayName: Provision missing FOCUS cost exports
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: AzureCLI@2
+            displayName: Provision missing FOCUS exports
+            inputs:
+              azureSubscription: $(focusExportServiceConnection)
+              scriptType: pscore
+              scriptLocation: scriptPath
+              scriptPath: scripts/provision_focus_exports.ps1
+
+          - task: AzureCLI@2
+            displayName: Provision missing price sheet exports
+            inputs:
+              azureSubscription: $(focusExportServiceConnection)
+              scriptType: pscore
+              scriptLocation: scriptPath
+              scriptPath: scripts/provision_price_sheet_exports.ps1

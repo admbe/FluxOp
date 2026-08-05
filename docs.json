@@ -12,6 +12,69 @@
     "light": "/assets/flux-robot.svg",
     "dark": "/assets/flux-robot.svg"
   },
+  "footer": {
+    "socials": {
+      "website": "https://fluxop.ai/",
+      "github": "https://github.com/admbe/FluxOp"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          {
+            "label": "Platform",
+            "href": "https://fluxop.ai/platform"
+          },
+          {
+            "label": "Solutions",
+            "href": "https://fluxop.ai/solutions"
+          },
+          {
+            "label": "Flux Intelligence",
+            "href": "https://fluxop.ai/intelligence"
+          },
+          {
+            "label": "Documentation",
+            "href": "https://doc.fluxop.ai/"
+          }
+        ]
+      },
+      {
+        "header": "Capabilities",
+        "items": [
+          {
+            "label": "Cost allocation",
+            "href": "https://doc.fluxop.ai/features/cost-management"
+          },
+          {
+            "label": "Anomaly detection",
+            "href": "https://doc.fluxop.ai/api/cost-anomalies"
+          },
+          {
+            "label": "Right-sizing",
+            "href": "https://doc.fluxop.ai/features/rightsizing"
+          },
+          {
+            "label": "Feature tour",
+            "href": "https://doc.fluxop.ai/introduction"
+          }
+        ]
+      },
+      {
+        "header": "Architecture",
+        "items": [
+          {
+            "label": "Data path",
+            "href": "https://doc.fluxop.ai/operations/data-model"
+          },
+          {
+            "label": "Governance boundary",
+            "href": "https://doc.fluxop.ai/features/flux-intelligence"
+          }
+        ]
+      }
+    ]
+  },
   "navigation": {
     "pages": [
       "docs/index"

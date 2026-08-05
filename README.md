@@ -1,4 +1,38 @@
-# Flux
+<p align="center">
+  <img src="assets/flux-banner.png" alt="Flux Intelligence — governed evidence, analyzed." width="720">
+</p>
+
+<h1 align="center">Flux</h1>
+
+<p align="center"><b>Governed evidence, analyzed.</b></p>
+
+<p align="center">
+  <a href="https://fluxop.ai"><img src="https://img.shields.io/badge/website-fluxop.ai-0f9d8c" alt="fluxop.ai"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776ab?logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/react-19-61dafb?logo=react&logoColor=white" alt="React 19">
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/DuckDB-1.4.5-fff000?logo=duckdb&logoColor=black" alt="DuckDB 1.4.5">
+  <img src="https://img.shields.io/badge/Azure-Resource%20Graph%20%C2%B7%20Cost%20Management-0078d4?logo=microsoftazure&logoColor=white" alt="Azure">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/FOCUS-v1.0-5b21b6" alt="FOCUS v1.0">
+  <img src="https://img.shields.io/badge/FinOps%20Toolkit-v14-5b21b6" alt="Microsoft FinOps Toolkit v14">
+  <a href="docs/FLUX-INTELLIGENCE.md"><img src="https://img.shields.io/badge/Ask%20Flux-19%20governed%20tools-0f9d8c" alt="Ask Flux: 19 governed tools"></a>
+  <img src="https://img.shields.io/github/last-commit/admbe/FluxOp?color=555" alt="Last commit">
+  <img src="https://img.shields.io/github/languages/top/admbe/FluxOp?color=3178c6" alt="Top language">
+</p>
+
+<p align="center">
+  <a href="https://fluxop.ai">Website</a> ·
+  <a href="#product-scope">Product scope</a> ·
+  <a href="#flux-intelligence">Flux Intelligence</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="#api">API</a>
+</p>
+
+---
 
 Flux is a focused Azure inventory and FinOps intelligence workspace.
 
@@ -6,15 +40,18 @@ It synchronizes Azure Resource Graph, Azure Advisor, Cost Management, Azure Moni
 
 ## Product scope
 
-The active application contains seven areas:
+The active application contains ten areas:
 
 - **Overview** — rich charts for estate shape, regional footprint, actual month-to-date cost, utilization coverage, and opportunities.
 - **Inventory** — searchable Azure Resource Graph inventory enriched with cost and VM performance summaries.
 - **Changes** — exact consecutive-snapshot inventory diffs with filterable evidence and warming-up-aware median/MAD change-volume detection.
 - **Cost anomalies** — governed seasonal anomaly detection, triage, export, and evidence packs.
-- **Reports** — native cost, forecast, workload, retirement, and Azure Policy reporting.
+- **Reports** — native cost, forecast, workload, retirement, allocation, budget, and Azure Policy reporting across four sections.
+- **Explore** — an ad-hoc query builder over the governed semantic layer, plus an expert mode that generates validated read-only SQL from a plain-language question.
 - **Opportunities** — searchable Azure Advisor recommendations and branded **Flux Signals** findings, with evidence, confidence, actual-cost context, and provenance-aware gross and risk-adjusted value.
-- **Integrations** — Azure tenant/subscription scope, independent source-run status, and telemetry coverage.
+- **Right-sizing plan** — planning boards that turn telemetry-backed candidates into reservation and savings-plan purchase decisions, with a decision log.
+- **[Flux Intelligence](#flux-intelligence)** — **Ask Flux**, the read-only conversational assistant that answers from governed evidence rather than raw database access.
+- **Administration** — Azure tenant/subscription scope, independent source-run status, telemetry coverage, and AI configuration.
 
 The former scenario studio, ad-hoc file ingestion, generated dashboards, and browser-only persistence are not part of v2.
 
@@ -111,34 +148,70 @@ Default Entra app-role values are `Flux.Reader` and `Flux.Admin`. Group object I
 
 Local development defaults to a mock administrator. Set `FLUX_AUTH_MODE=entra` only behind correctly configured App Service Authentication; the application then trusts the principal header injected by App Service.
 
-### Flux Intelligence
+## Flux Intelligence
+
+<img src="assets/flux-robot.svg" alt="" width="72" align="right">
 
 **Flux Intelligence** is the umbrella capability. **Ask Flux** is its
 conversational assistant, **Flux Signals** is the deterministic optimization
 rule engine, and governed intelligence tools are the bounded report/evidence
 APIs behind both experiences.
 
-Ask Flux adds two read-only assistant experiences:
-**Ask Flux**, a contextual right-side panel, and the full-screen **Intelligence
-Workspace**. Both require the existing `Flux.Reader` or `Flux.Admin` application
-role.
+### Governed evidence, not database access
 
-The model cannot query Azure, DuckDB, Rill, or SQL directly. It can invoke only
-bounded, authenticated Flux tools over the governed report catalog, aggregated
-daily cost, FOCUS charge evidence, inventory, opportunities, telemetry, and an
-approved documentation allowlist. Conversation
-prompts, validated replies, and the raw final response are retained in DuckDB
-for 30 days for administrator quality review. Model reasoning is never retained.
-Pseudonymous performance and usage metadata is retained for the same period.
-Every reply receives a deterministic quality score covering structure,
-grounding, partial-coverage disclosure, tables, follow-up perspective, and
-summary completeness. Server-owned action links connect evidence back to the
-relevant Flux page.
+Most "AI for your data" tools hand a model a database connection and hope the
+generated SQL is right. Flux does the opposite: the model has **no** database
+connection, Azure credential, Rill endpoint, or arbitrary query interface. It
+can call only **19 declared server-side tools**, each of which validates and
+bounds its arguments before invoking the same governed services the UI uses.
 
-Fast and deep-analysis profiles are available through a swappable backend
-adapter. The service has a USD 10 evaluation budget and stops requests at an
-estimated USD 8. See [the architecture, retention, and
-limitations](docs/FLUX-INTELLIGENCE.md).
+The practical consequences:
+
+- An answer is reproducible — every number came from a named tool over
+  governed data, and the tools are listed with each reply.
+- Coverage gaps are stated rather than papered over. If a subscription's cost
+  export is missing, the answer says so before it states a total.
+- The model cannot be prompted into reading something it was never granted;
+  there is no query surface to redirect.
+
+### What you can ask
+
+Ask Flux answers questions across cost, changes, anomalies, optimization,
+right-sizing, inventory, governance, and reporting — for example:
+
+- *"What changed in amortized cost this month compared to last?"*
+- *"Attribute this month's increase to specific resources."*
+- *"Which VMs are the strongest right-sizing candidates?"*
+- *"Where are telemetry coverage gaps limiting right-sizing decisions?"*
+- *"How much are idle and orphaned resources costing me?"*
+- *"What is my tag compliance rate, and where are the gaps?"*
+- *"Explain how Flux calculates a cost anomaly."*
+
+### What comes back
+
+A reply is a validated structure, not free text. It can carry a summary,
+Markdown, governed Recharts specifications, strict Mermaid diagrams, and — kept
+deliberately separate — **retrieved facts**, **interpretation**, **limitations**,
+and the **governed sources** invoked. Server-owned action links connect the
+evidence back to the relevant Flux page, follow-up questions are offered, and a
+per-answer performance breakdown shows where the time went. Every reply also
+receives a deterministic 0–100 quality score covering structure, grounding,
+partial-coverage disclosure, table validity, follow-up perspective, and summary
+completeness.
+
+### Access, retention, and cost
+
+Both experiences — the contextual **Ask Flux** panel and the full-screen
+**Intelligence Workspace** — require the existing `Flux.Reader` or `Flux.Admin`
+application role. Prompts, validated replies, and the raw final response are
+retained in DuckDB for 30 days for administrator quality review; model reasoning
+is never retained. Pseudonymous performance and usage metadata is retained for
+the same period. Fast and deep-analysis profiles run through a swappable
+provider adapter (DeepSeek, OpenRouter, or Azure AI Foundry), with a default USD
+10 evaluation budget that stops requests at an estimated USD 8.
+
+See [docs/FLUX-INTELLIGENCE.md](docs/FLUX-INTELLIGENCE.md) for the full tool
+catalog, provider configuration, output controls, and known limitations.
 
 ## Connect Azure locally
 

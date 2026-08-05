@@ -1,6 +1,6 @@
 # Flux documentation
 
-One index for everything: architecture, data ingestion, FinOps methods, AI, and operations. Start with the [project README](../README.md) for product scope and quick start.
+One index for everything: architecture, data ingestion, FinOps methods, AI, and operations. Start with the [project README](../README.md) for product scope and quick start, or [fluxop.ai](https://fluxop.ai) for the product overview.
 
 ## Architecture and platform
 
@@ -28,11 +28,11 @@ One index for everything: architecture, data ingestion, FinOps methods, AI, and 
 | [FINOPS-RULE-TRADEOFF-SIMULATOR.md](FINOPS-RULE-TRADEOFF-SIMULATOR.md) | Trade-off simulation for rule thresholds |
 | [REPORTING-PARITY.md](REPORTING-PARITY.md) | Parity mapping between native Flux reports and Microsoft FinOps Toolkit reports |
 
-## AI
+## Intelligence
 
 | Document | Covers |
 |---|---|
-| [FLUX-INTELLIGENCE.md](FLUX-INTELLIGENCE.md) | Ask Flux: governed tool surface, response validation, retention, and performance accounting |
+| [FLUX-INTELLIGENCE.md](FLUX-INTELLIGENCE.md) | **Ask Flux**: the 19-tool governed catalog, the mutation boundary, provider configuration (DeepSeek / OpenRouter / Azure AI Foundry), output controls, retention, performance accounting, and known limitations |
 
 ## Operations
 

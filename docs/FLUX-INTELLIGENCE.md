@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="../assets/flux-banner.png" alt="Flux Intelligence — governed evidence, analyzed." width="640">
+</p>
+
 # Flux Intelligence
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-08-04
 
 Flux Intelligence is the umbrella for FluxFinOps intelligence features:
 
@@ -40,6 +44,66 @@ application services.
 The existing `Flux.Reader` application role is required. `Flux.Admin` inherits
 read access. No assistant-specific user authorization model is introduced.
 
+## Governed tool catalog
+
+Nineteen tools are declared. A reply lists every tool it invoked, so any number
+in an answer can be traced to the governed service that produced it. Tools that
+search are bounded (50 results); `FLUX_AI_MAX_TOOL_CALLS` (default 12) bounds
+how many calls one answer may make.
+
+### Cost and billing
+
+| Tool | Returns |
+|---|---|
+| `get_cost_summary` | Actual or amortized cost summary, trends, breakdowns, movers, forecast, and lineage |
+| `get_focus_cost` | FOCUS charge-level billed, effective, contracted, and list cost with service, pricing, commitment, SKU, meter, resource, and manifest lineage |
+| `investigate_cost_change` | Daily comparison and FOCUS charge drivers in one request — the preferred entry point for "why did this change?" |
+| `get_cost_anomalies` | Seasonal anomaly findings and aggregate evaluation status |
+| `get_fiscal_year_outlook` | Fiscal-year actuals to date, projected remaining months with confidence bounds, and budget variance |
+| `get_commitment_inventory` | Active reservations: SKU, region, quantity, term, scope, 1/7/30-day utilization, and expiry |
+| `get_virtual_tag_showback` | Virtual-tag dimensions, classified and unclassified cost, monthly history, and assignment provenance |
+
+### Optimization and right-sizing
+
+| Tool | Returns |
+|---|---|
+| `search_opportunities` | Advisor and Flux Signals findings with valuation and evidence metadata |
+| `get_workload_optimization` | Workload optimization report: value, confidence, coverage gaps, aging, top opportunities |
+| `get_rightsizing_recommendations` | Deterministic right-sizing and idle findings for many resources, with current and target SKU |
+| `get_rightsizing_dossier` | The complete evidence dossier for **one** VM as a resize candidate, across every telemetry source |
+| `get_rightsizing_plan` | The human-owned purchase plan: commitment buckets, planned quantities, planner-entered economics, and decisions |
+| `create_rightsizing_board` | Creates a new empty planning board — see [Mutation boundary](#mutation-boundary) |
+
+### Inventory, telemetry, and governance
+
+| Tool | Returns |
+|---|---|
+| `search_inventory` | Current Azure inventory from governed snapshots |
+| `get_resource_telemetry` | Azure Monitor and LogicMonitor summaries for one exact resource ID |
+| `get_fleet_telemetry` | Utilization (CPU, memory, network, coverage) plus actual cost for many resources at once |
+| `get_governance_posture` | Azure Policy compliance posture and resource drilldown |
+
+### Reference
+
+| Tool | Returns |
+|---|---|
+| `get_report_catalog` | Approved reports, measures, dimensions, filters, lineage, and guardrails |
+| `search_documentation` | The approved FluxFinOps documentation allowlist and, when configured, the company wiki's FluxFinOps articles |
+
+## Mutation boundary
+
+Ask Flux has **no cloud mutation capability**: it cannot start, stop, resize,
+delete, tag, or purchase anything in Azure, and it cannot write to the
+analytical store.
+
+One tool does create Flux application state. `create_rightsizing_board` creates
+a new, empty planning board — a scratch space for a scenario such as
+"Aggressive downsize option". Its constraints are deliberate: the new board is
+never primary, never affects the fiscal outlook, and the tool may only be called
+after the user has explicitly confirmed the exact board name in a later message.
+Existing boards, placements, and decisions remain human-owned; the assistant
+cannot alter them.
+
 ## Analysis profiles
 
 | Profile | Purpose |
@@ -50,18 +114,33 @@ read access. No assistant-specific user authorization model is introduced.
 The model service is hidden behind an adapter and configured through secure
 environment settings. UI and governed tools are not coupled to a named model.
 
-Two provider adapters are available:
+Three provider adapters are available, selected with `FLUX_AI_PROVIDER` and
+switchable at runtime by an administrator under **Administration → AI**:
 
-| Provider | Setting | Default fast model | Default deep model |
+| Provider | `FLUX_AI_PROVIDER` | Default fast model | Default deep model |
 |---|---|---|---|
-| **OpenRouter** (default) | `FLUX_AI_PROVIDER=openrouter` | `google/gemini-2.5-flash-lite` ($0.10/$0.40 per M) | `openai/gpt-4.1-mini` ($0.40/$1.60 per M) |
-| DeepSeek (backward-compat) | `FLUX_AI_PROVIDER=deepseek` | `deepseek-v4-flash` | `deepseek-v4-pro` |
+| **DeepSeek** (default) | `deepseek` | `deepseek-v4-flash` | `deepseek-v4-pro` |
+| **OpenRouter** | `openrouter` | `google/gemini-2.5-flash-lite` | `openai/gpt-4.1-mini` |
+| **Azure AI Foundry** | `foundry` | deployment name (no default) | deployment name (no default) |
 
-The OpenRouter provider routes to cost-effective non-Chinese models through
-the OpenRouter API (`https://openrouter.ai/api/v1/chat/completions`). The API
-key (`FLUX_OPENROUTER_API_KEY`) is stored as an App Service Key Vault reference
-and must never be passed through the pipeline `appSettings` parameter (which
-would wipe it on every deploy). Non-secret settings are applied additively via
+Provider notes:
+
+- **DeepSeek** calls `https://api.deepseek.com` with `FLUX_DEEPSEEK_API_KEY`.
+- **OpenRouter** routes to cost-effective models through
+  `https://openrouter.ai/api/v1` with `FLUX_OPENROUTER_API_KEY`.
+- **Azure AI Foundry** keeps traffic inside an Azure resource. Set
+  `FLUX_FOUNDRY_ENDPOINT`, `FLUX_FOUNDRY_API_KEY`, and the deployment names in
+  `FLUX_FOUNDRY_CHAT_MODEL` / `FLUX_FOUNDRY_BENCHMARK_MODEL`; the OpenAI-shaped
+  route uses `FLUX_FOUNDRY_API_VERSION` (default `2024-05-01-preview`). Claude
+  deployments on Foundry are served through a separate Anthropic-Messages-
+  compatible route: the adapter derives it from the endpoint by swapping a
+  trailing `/models` for `/anthropic`, and
+  `FLUX_FOUNDRY_ANTHROPIC_ENDPOINT` / `FLUX_FOUNDRY_ANTHROPIC_API_VERSION`
+  override that only when the guess is wrong for the resource.
+
+Every provider API key is stored as an App Service Key Vault reference and must
+never be passed through the pipeline `appSettings` parameter (which would wipe
+it on every deploy). Non-secret settings are applied additively via
 `az webapp config appsettings set` to preserve Key Vault references.
 
 ## Data and retention

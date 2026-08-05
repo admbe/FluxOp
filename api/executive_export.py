@@ -20,10 +20,10 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-_TITLE_FONT = Font(size=15, bold=True, color="1B4D3E")
-_SECTION_FONT = Font(size=11, bold=True, color="1B4D3E")
-_HEADER_FONT = Font(bold=True, color="FFFFFF")
-_HEADER_FILL = PatternFill("solid", fgColor="2E7D5B")
+_TITLE_FONT = Font(name="Aptos Display", size=22, bold=True, color="10211C")
+_SECTION_FONT = Font(name="Aptos", size=10, bold=True, color="087F5B")
+_HEADER_FONT = Font(name="Aptos", bold=True, color="FFFFFF")
+_HEADER_FILL = PatternFill("solid", fgColor="12372D")
 _WARN_FILL = PatternFill("solid", fgColor="FDE9D9")
 _OVER_FILL = PatternFill("solid", fgColor="F8D7DA")
 _UNDER_FILL = PatternFill("solid", fgColor="D6F0E0")
@@ -34,19 +34,17 @@ _PERCENT = '0.0"%"'
 
 
 def _sheet_title(sheet: Worksheet, title: str, subtitle: str) -> int:
-    sheet["A1"] = title
-    sheet["A1"].font = _TITLE_FONT
-    sheet["A2"] = subtitle
-    sheet["A2"].font = Font(size=9, color="666666")
-    sheet.merge_cells("A1:H1")
-    sheet.merge_cells("A2:H2")
-    sheet["A1"].fill = _HEADER_FILL
-    sheet["A1"].font = Font(size=15, bold=True, color="FFFFFF")
-    sheet["A2"].fill = _SUBTLE_FILL
+    """Use the report's restrained executive hierarchy on every sheet."""
+    sheet["A2"] = title
+    sheet["A2"].font = _TITLE_FONT
+    sheet["A3"] = subtitle
+    sheet["A3"].font = Font(name="Aptos", size=10, color="687973")
+    sheet.merge_cells("A2:J2")
+    sheet.merge_cells("A3:J3")
     sheet.sheet_view.showGridLines = False
-    sheet.row_dimensions[1].height = 26
-    sheet.row_dimensions[2].height = 22
-    return 4
+    sheet.row_dimensions[2].height = 32
+    sheet.row_dimensions[3].height = 20
+    return 5
 
 
 def _header_row(sheet: Worksheet, row: int, headers: list[str]) -> int:
@@ -150,46 +148,89 @@ def _outlook_sheet(sheet: Worksheet, outlook: dict[str, Any]) -> None:
     row = _sheet_title(
         sheet,
         f"Fiscal-year outlook — {outlook.get('fiscalYear')}",
-        outlook.get("reason") or "",
+        "Actual through the current month; projected thereafter with a lower/"
+        "upper planning range. Monthly budget "
+        + (
+            f"${outlook.get('budgetMonthly'):,.0f}."
+            if outlook.get("budgetMonthly") is not None
+            else "not configured."
+        ),
     )
-    headers = ["Month", "Status", "Actual", "Projected", "Lower", "Upper", "Monthly budget", "Variance vs budget"]
+    headers = ["Month", "Status", "Spend", "Actual", "Lower", "Upper", "Monthly budget", "Variance"]
     data_start = _header_row(sheet, row, headers)
     budget = outlook.get("budgetMonthly")
     current = data_start
     for month in outlook.get("months") or []:
         sheet.cell(row=current, column=1, value=month["month"])
-        sheet.cell(row=current, column=2, value=month["status"])
+        status = month["status"].replace("inProgress", "in progress")
+        sheet.cell(row=current, column=2, value=status)
         is_actual = month["status"] == "actual"
-        for column, value in ((3, month["amount"] if is_actual else None), (4, month["amount"] if not is_actual else None), (5, month["lower"]), (6, month["upper"])):
+        for column, value in (
+            (3, month["amount"]),
+            (4, month["amount"] if is_actual else None),
+            (5, month["lower"] if not is_actual else None),
+            (6, month["upper"] if not is_actual else None),
+        ):
             cell = sheet.cell(row=current, column=column, value=value)
             cell.number_format = _MONEY
+        if is_actual:
+            sheet.cell(row=current, column=2).font = Font(bold=True, color="087F5B")
+        elif status == "in progress":
+            sheet.cell(row=current, column=2).font = Font(bold=True, color="A56500")
+        else:
+            sheet.cell(row=current, column=2).font = Font(color="687973")
         if budget is not None:
             cell = sheet.cell(row=current, column=7, value=budget)
             cell.number_format = _MONEY
             if month["amount"] > budget:
-                sheet.cell(row=current, column=3 if is_actual else 4).fill = _WARN_FILL
+                sheet.cell(row=current, column=3).font = Font(bold=True, color="C2410C")
             variance = month["amount"] - budget
             variance_cell = sheet.cell(row=current, column=8, value=variance)
             variance_cell.number_format = _MONEY
-            variance_cell.fill = _OVER_FILL if variance > 0 else _UNDER_FILL
+            variance_cell.font = Font(
+                bold=True,
+                color="C2410C" if variance > 0 else "087F5B",
+            )
         current += 1
 
-    chart = BarChart()
-    chart.type = "col"
-    chart.title = f"{outlook.get('fiscalYear')} monthly spend"
-    chart.height = 9
-    chart.width = 26
+    total_row = current
+    sheet.cell(row=total_row, column=1, value="FY TOTAL").font = Font(bold=True)
+    for column, value in (
+        (3, outlook.get("fyTotal")),
+        (7, outlook.get("fyBudget")),
+        (8, outlook.get("fyVarianceVsBudget")),
+    ):
+        cell = sheet.cell(row=total_row, column=column, value=value)
+        cell.font = Font(bold=True, color="C2410C" if column == 8 else "10211C")
+        cell.number_format = _MONEY
+    for column in range(1, 9):
+        sheet.cell(row=total_row, column=column).fill = _SUBTLE_FILL
+
+    chart = LineChart()
+    chart.title = "Monthly spend vs budget — with planning range"
+    chart.height = 12
+    chart.width = 24
     chart.y_axis.numFmt = _MONEY
-    amounts = Reference(sheet, min_col=3, max_col=4, min_row=data_start - 1, max_row=current - 1)
+    amounts = Reference(
+        sheet, min_col=3, max_col=7, min_row=data_start - 1, max_row=current - 1
+    )
     labels = Reference(sheet, min_col=1, min_row=data_start, max_row=current - 1)
     chart.add_data(amounts, titles_from_data=True)
-    if len(chart.series) >= 2:
-        chart.series[0].tx = SeriesLabel(v="Actual")
-        chart.series[1].tx = SeriesLabel(v="Projected")
-        chart.series[0].graphicalProperties.solidFill = "2E7D5B"
-        chart.series[1].graphicalProperties.solidFill = "5B8DB8"
+    if len(chart.series) >= 5:
+        chart.series[0].tx = SeriesLabel(v="Spend")
+        chart.series[0].graphicalProperties.line.solidFill = "188563"
+        chart.series[0].graphicalProperties.line.width = 26000
+        chart.series[1].tx = SeriesLabel(v="Actual")
+        chart.series[1].graphicalProperties.line.solidFill = "188563"
+        for index, label in ((2, "Lower range"), (3, "Upper range")):
+            chart.series[index].tx = SeriesLabel(v=label)
+            chart.series[index].graphicalProperties.line.solidFill = "9DCDBD"
+            chart.series[index].graphicalProperties.line.prstDash = "dash"
+        chart.series[4].tx = SeriesLabel(v="Monthly budget")
+        chart.series[4].graphicalProperties.line.solidFill = "A3ACA8"
+        chart.series[4].graphicalProperties.line.prstDash = "dash"
     chart.set_categories(labels)
-    sheet.add_chart(chart, f"H{max(row, 4)}")
+    sheet.add_chart(chart, f"A{total_row + 2}")
     sheet.freeze_panes = f"A{data_start}"
     _autosize(sheet, {1: 12, 2: 12, 3: 14, 4: 14, 5: 14, 6: 14, 7: 15, 8: 17})
 
@@ -245,7 +286,7 @@ def _groups_sheet(sheet: Worksheet, outlook: dict[str, Any]) -> None:
         chart = BarChart()
         chart.type = "bar"
         chart.style = 10
-        chart.title = "Projected spend vs annual budget"
+        chart.title = "Annual budget vs FY projected"
         chart.height = 8
         chart.width = 20
         chart.x_axis.numFmt = _MONEY
@@ -255,8 +296,8 @@ def _groups_sheet(sheet: Worksheet, outlook: dict[str, Any]) -> None:
         if len(chart.series) >= 2:
             chart.series[0].tx = SeriesLabel(v="Annual budget")
             chart.series[1].tx = SeriesLabel(v="FY projected")
-            chart.series[0].graphicalProperties.solidFill = "E3A23B"
-            chart.series[1].graphicalProperties.solidFill = "2E7D5B"
+            chart.series[0].graphicalProperties.solidFill = "A3ACA8"
+            chart.series[1].graphicalProperties.solidFill = "188563"
         chart.set_categories(labels)
         sheet.add_chart(chart, "K4")
     sheet.freeze_panes = f"A{data_start}"
@@ -308,13 +349,13 @@ def _planning_lens_sheet(
     if services:
         chart = BarChart()
         chart.type = "bar"
-        chart.title = "Top services by MTD actual"
+        chart.title = "Top services — MTD actual"
         chart.height = 8
         chart.width = 20
         chart.x_axis.numFmt = _MONEY
         chart.add_data(Reference(sheet, min_col=2, min_row=service_row - len(services) - 1, max_row=service_row - 1), titles_from_data=True)
         chart.series[0].tx = SeriesLabel(v="MTD actual")
-        chart.series[0].graphicalProperties.solidFill = "2E7D5B"
+        chart.series[0].graphicalProperties.solidFill = "188563"
         chart.set_categories(Reference(sheet, min_col=1, min_row=service_row - len(services), max_row=service_row - 1))
         sheet.add_chart(chart, "E4")
     sheet.freeze_panes = f"A{data_start}"
@@ -387,7 +428,7 @@ def _commitments_sheet(sheet: Worksheet, commitments: dict[str, Any]) -> None:
     summary = commitments.get("summary") or {}
     row = _sheet_title(
         sheet,
-        "Reservation posture",
+        "Commitments",
         f"{summary.get('activeCount', 0)} active ·"
         f" {summary.get('expiringWithin120Days', 0)} expiring within 120 days"
         f" · fleet 30-day utilization"

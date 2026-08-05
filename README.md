@@ -28,7 +28,7 @@
   <a href="#product-scope">Product scope</a> ·
   <a href="#flux-intelligence">Flux Intelligence</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://doc.fluxop.ai/">Documentation</a> ·
   <a href="#api">API</a>
 </p>
 
@@ -65,7 +65,7 @@ The former scenario studio, ad-hoc file ingestion, generated dashboards, and bro
 - Azure Identity for secretless ARG, Advisor, and Cost Management access
 - Local Azure PowerShell identity for development access
 
-See the [documentation index](docs/README.md) for all guides — [docs/architecture.md](docs/architecture.md) for the design and extension model and [docs/entra-managed-identity.md](docs/entra-managed-identity.md) for Azure configuration.
+See the [published documentation](https://doc.fluxop.ai/) for the customer-facing guides. Repository-level technical references remain available in [docs/architecture.md](docs/architecture.md) and [docs/entra-managed-identity.md](docs/entra-managed-identity.md).
 
 ## Quick start
 

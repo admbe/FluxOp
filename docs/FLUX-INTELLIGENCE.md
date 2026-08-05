@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../assets/flux-banner.png" alt="Flux Intelligence — governed evidence, analyzed." width="640">
+  <img src="../assets/flux-banner.png" alt="Flux Intelligence — governed evidence, analyzed." width="640" />
 </p>
 
 # Flux Intelligence

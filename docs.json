@@ -1,0 +1,20 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Flux",
+  "description": "Governed cloud cost intelligence and FinOps operations.",
+  "colors": {
+    "primary": "#0F9D8C",
+    "light": "#18B7A2",
+    "dark": "#087F73"
+  },
+  "logo": {
+    "light": "/assets/flux-robot.svg",
+    "dark": "/assets/flux-robot.svg"
+  },
+  "navigation": {
+    "pages": [
+      "docs/index"
+    ]
+  }
+}

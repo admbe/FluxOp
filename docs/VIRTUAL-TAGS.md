@@ -110,7 +110,7 @@ Application deployment follows the normal `main` Azure DevOps pipeline. Schema i
 - Adds `virtual_tag_rules.effect` with default `include` if absent.
 - Retains existing rules, audits, and overrides.
 
-Application rollback is a normal redeploy of the prior commit. The additive columns and dimension table can remain safely because old application versions ignore them. Do not drop them during rollback. Imported assignment rollback remains the separate optimistic-concurrency procedure in [VIRTUAL-TAG-PRODUCTION-DEPLOYMENT.md](VIRTUAL-TAG-PRODUCTION-DEPLOYMENT.md).
+Application rollback is a normal redeploy of the prior commit. The additive columns and dimension table can remain safely because old application versions ignore them. Do not drop them during rollback. Imported assignment rollback remains the separate optimistic-concurrency procedure in the [production deployment guide](/docs/VIRTUAL-TAG-PRODUCTION-DEPLOYMENT).
 
 ## Known limitations and next evolution
 

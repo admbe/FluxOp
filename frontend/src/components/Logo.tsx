@@ -1,31 +1,50 @@
-import { useGlobalActivity } from "../busy";
-
-/**
- * The Pulse mark: brand hexagon with a signal spike through it. While a
- * report or Flux Intelligence response is generating anywhere in the app,
- * the spike animates as a sweeping trace (CSS, reduced-motion aware).
- */
-export function Logo({ compact = false }: { compact?: boolean }) {
-  const busy = useGlobalActivity();
+export function Logo({
+  compact = false,
+  busy = false,
+}: {
+  compact?: boolean;
+  busy?: boolean;
+}) {
   return (
-    <div className={`logo-lockup${busy ? " logo-lockup--busy" : ""}`} aria-label="Flux">
-      <svg className="logo-mark" viewBox="0 0 24 24" aria-hidden="true">
-        <path
-          className="logo-hex"
-          d="M12 2l9 5v10l-9 5-9-5V7z"
+    <div className="logo-lockup" aria-label="Flux">
+      {/* Flux robot. Same geometry as the approved README banner and the
+          marketing site's robot mark: solid head, dark visor panel, two lit
+          eyes, ears, antenna.
+
+          The visor MUST use the style property, not a fill= attribute —
+          var() is not valid in SVG presentation attributes, so
+          fill="rgb(var(--background))" silently inherits fill="none" from the
+          root and the entire face disappears. currentColor IS valid as an
+          attribute, which is why every other part uses fill="currentColor". */}
+      <svg
+        className={busy ? "logo-mark logo-mark--busy" : "logo-mark"}
+        viewBox="0 0 200 200"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle
+          className="fx-ring"
+          cx="100"
+          cy="20"
           fill="none"
-          strokeWidth="1.7"
-          strokeLinejoin="round"
+          stroke="currentColor"
+          strokeWidth="5"
         />
-        <polyline
-          className="logo-pulse"
-          points="6.5,13 9.5,13 11.2,8 13.6,16.5 15.2,12 17.5,12"
-          fill="none"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          pathLength="100"
+        <circle className="fx-dot" cx="100" cy="20" r="9" fill="currentColor" />
+        <path d="M100 28 V48" stroke="currentColor" strokeWidth="9" strokeLinecap="round" />
+        <rect x="18" y="84" width="16" height="38" rx="8" fill="currentColor" />
+        <rect x="166" y="84" width="16" height="38" rx="8" fill="currentColor" />
+        <rect x="38" y="46" width="124" height="108" rx="30" fill="currentColor" />
+        <rect
+          x="58"
+          y="74"
+          width="84"
+          height="54"
+          rx="24"
+          style={{ fill: "rgb(var(--background))" }}
         />
+        <circle className="fx-eye-l" cx="80" cy="101" r="9" fill="currentColor" />
+        <circle className="fx-eye-r" cx="120" cy="101" r="9" fill="currentColor" />
       </svg>
       {!compact && (
         <div>

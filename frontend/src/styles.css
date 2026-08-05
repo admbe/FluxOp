@@ -1386,3 +1386,65 @@ input::placeholder { color: rgb(var(--text-muted)); opacity: .7; }
 .tag-provenance--rule { color: rgb(var(--info)); background: rgb(var(--info) /.12); }
 .tag-provenance--imported { color: rgb(var(--purple)); background: rgb(var(--purple) /.12); }
 .tag-provenance--manual { color: rgb(var(--warning)); background: rgb(var(--warning) /.12); }
+
+/* ── Robot mark: busy state ────────────────────────────────────────────────
+   Mirrors the existing .spin pattern — opacity and transform only, so it
+   composites the same way. A rotating head reads as broken, so the mark
+   signals work through its own features: the antenna pulses with an expanding
+   ring, and the two eyes dim out of phase so the face scans left to right. */
+@keyframes flux-eye {
+  0%, 100% { opacity: 1; }
+  42% { opacity: .18; }
+}
+@keyframes flux-antenna {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.45); opacity: .45; }
+}
+@keyframes flux-ring {
+  from { r: 9; opacity: .5; }
+  to { r: 34; opacity: 0; }
+}
+
+.logo-mark .fx-ring { r: 9; opacity: 0; }
+.logo-mark--busy .fx-eye-l { animation: flux-eye 1.15s ease-in-out infinite; }
+.logo-mark--busy .fx-eye-r { animation: flux-eye 1.15s ease-in-out infinite; animation-delay: -.38s; }
+.logo-mark--busy .fx-dot {
+  animation: flux-antenna 1.15s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.logo-mark--busy .fx-ring { animation: flux-ring 1.15s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark--busy .fx-eye-l,
+  .logo-mark--busy .fx-eye-r,
+  .logo-mark--busy .fx-dot,
+  .logo-mark--busy .fx-ring { animation: none; }
+  .logo-mark--busy .fx-eye-r { opacity: .3; }
+}
+
+/* The robot is wider than it is tall (ears span 18→182 of a 200 viewBox, head
+   46→154) where the hexagon was square. Pin the width; 32px matches the
+   optical weight of the old 30px hexagon. Height follows the viewBox. */
+.logo-mark { width: 32px; height: auto; }
+
+/* ── Vibe code variant: component treatment ────────────────────────────────
+   The palette alone is not the theme. These two rules are what make it read as
+   an editor: mono numerals, and the freshness bar as a status line.
+   No --font-mono token exists, so the stack is the same literal used by
+   .resource-id / code / pre in styles.css. */
+[data-variant="vibe-code"] .metric-card > strong,
+[data-variant="vibe-code"] .freshness-bar,
+[data-variant="vibe-code"] .freshness-bar strong {
+  font-family: "JetBrains Mono", "Geist Mono", "Cascadia Code", ui-monospace, monospace;
+}
+[data-variant="vibe-code"] .metric-card > strong { letter-spacing: -.02em; }
+[data-variant="vibe-code"] .freshness-bar {
+  font-size: 11px;
+  letter-spacing: .01em;
+}
+/* Pipe separators between freshness items instead of interpuncts. */
+[data-variant="vibe-code"] .freshness-bar > :not(:last-child)::after {
+  content: " |";
+  color: rgb(var(--border-bright));
+}

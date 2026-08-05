@@ -1,5 +1,7 @@
 import type { AdminJob, ExpertExplorerResult, AiIntelligenceConfig, BudgetGroup, CommitmentInventory, CostCoverage, FiscalOutlook, PlanLogEntry, SloReport, TelemetryCoverage, RightsizingBoard, RightsizingImportPreview, RightsizingImportReport, RightsizingPlanBoard, SemanticCatalog, SemanticQueryRequest, SemanticQueryResult, AllocationConfig, AuditEntry, DatabaseHealth, RetentionPolicy, AllocationReport, BudgetReport, ExecutiveSummary, FocusAnalyticsReport, SavingsReport, UnitEconomicsReport, AzureIntegration, ChangeAnomalies, CostAnomalies, CostAnomaly, CostAnomalyContributor, CostHistoryStatus, CostReport, FinOpsToolkitStatus, GovernanceReport, IntelligenceResponse, IntelligenceReview, IntelligenceStatus, Inventory, InventoryChanges, OperationalHealth, Opportunities, Overview, RecommendationQuality, ResourceTelemetry, RightsizingRecommendations, Session, TagHygieneReport, TelemetryStatus, VirtualTagDimension, VirtualTagPreview, VirtualTagReport, VirtualTagRule, WorkloadReport } from "./types";
 
+import { trackBusy } from "./busy";
+
 const API_ROOT = "/api";
 
 export class ApiError extends Error {
@@ -49,7 +51,7 @@ export function formatApiError(value: unknown, fallback: string): string {
   return fallback;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function performRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_ROOT}${path}`, {
     ...init,
     headers: {
@@ -68,6 +70,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return undefined as T;
   }
   return response.json() as Promise<T>;
+}
+
+/**
+ * Every api.* method funnels through here, so wrapping this one function is
+ * all the shared busy state needs. The *ExportUrl helpers return strings and
+ * are deliberately untouched: a CSV download is a browser navigation, not a
+ * governed read, and should not light the mark.
+ */
+function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return trackBusy(() => performRequest<T>(path, init));
 }
 
 export const api = {

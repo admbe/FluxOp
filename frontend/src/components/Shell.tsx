@@ -11,6 +11,7 @@ import {
   Menu,
   Monitor,
   Moon,
+  Palette,
   Scaling,
   Sparkles,
   Sun,
@@ -21,7 +22,8 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import { absoluteTime, relativeTime } from "../format";
-import { useTheme, type ThemePreference } from "../theme";
+import { useTheme, themeVariants, type ThemePreference, type ThemeVariant } from "../theme";
+import { useBusy } from "../useBusy";
 import type { Page, Session } from "../types";
 import { Logo } from "./Logo";
 
@@ -134,7 +136,13 @@ export function Shell({
   onOpenIntelligence: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, variant, setVariant } = useTheme();
+  const busy = useBusy();
+  // The variant only redefines tokens inside .dark, so the picker is hidden
+  // in light mode rather than offering a control that does nothing.
+  const darkActive = theme === "dark"
+    || (theme === "system"
+      && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -163,7 +171,7 @@ export function Shell({
           >
             <Menu size={19} />
           </button>
-          <Logo />
+          <Logo busy={busy} />
         </div>
         <div className="app-header-context">
           <span>Cloud operations</span>
@@ -200,6 +208,20 @@ export function Shell({
               <option value="dark">Dark</option>
             </select>
           </label>
+          {darkActive && (
+            <label className="theme-selector" title="Dark theme">
+              <Palette size={15} />
+              <select
+                value={variant}
+                onChange={(event) => setVariant(event.target.value as ThemeVariant)}
+                aria-label="Dark theme"
+              >
+                {themeVariants.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="header-user">
             <span className="user-avatar"><UserRound size={14} /></span>
             <div>

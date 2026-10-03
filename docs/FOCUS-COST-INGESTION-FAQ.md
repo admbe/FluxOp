@@ -51,7 +51,7 @@ One `focus-daily` export per **source subscription scope** `/subscriptions/<id>`
   - Estimates `QPU ≈ months in range` (Microsoft notes date-range + factors change cost — header `x-ms-ratelimit-microsoft.costmanagement-qpu-consumed` is authoritative, reconciled after `200`).
   - Enforces `20s × QPU` minimum + tenant-wide **single active request** (`SharedRequestGate` `cost-management` slot) + header-driven backoff (`-retry-after`, `Retry-After` respected verbatim, never shortened).
   - On `429/503` persists the exact server retry duration + `next_allowed_at`, re-queues scope with fair rotation (head-of-queue never blocks 24h). On `401/403` fail-fast, no retry.
-- **Where it lands:** operational `cost_history_runs / cost_history_scope_runs / cost_history_request_attempts` (checkpoints) → analytical `daily_cost_history` → snapshot `analytics_publications` → web snapshot (`FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot` in prod, `direct` on `dev host 192.0.2.10`).
+- **Where it lands:** operational `cost_history_runs / cost_history_scope_runs / cost_history_request_attempts` (checkpoints) → analytical `daily_cost_history` → snapshot `analytics_publications` → web snapshot (`FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot` in prod, `direct` in local development).
 
 ### Truck B — Cost Details API (`api/cost_details.py` — the recovery van)
 
@@ -116,10 +116,10 @@ See the throttling doc's **Observability and alerting** (requested for `20 - Pro
 > *Request count by endpoint/tenant/subscription/client type; estimated QPU vs `qpu-consumed`; `qpu-remaining` per window; 429 count + causing header; 503 + `Retry-After`; tenant cooldown + `next_allowed_at`; queue depth + oldest scope; coverage by subscription/month; time since last refresh; Cost Details / Export age.*
 > Alert on `3 consecutive 429s`, `cooldown >15m`, `deferred >24h`, `coverage < target`, `actual >> estimated`, `same scope repeatedly fails while others healthy`.
 
-## 8. `prod-eu-iaas-sub` without FOCUS — answered plainly
+## 8. A subscription without FOCUS — answered plainly
 
-- **Without FOCUS, `prod-eu-iaas-sub` is still covered for daily MTD** — `cost-reconciliation` shows `280 rows, $4,518 MTD` succeeding on the daily 14-day Query path. Kill FOCUS and you lose `EffectiveCost` precision, not the subscription.
-- **The FY exclusion is monthly history, not FOCUS** — `GET /api/reports/fiscal-outlook` `subscriptionCoverage 15/22`, `prod-eu-iaas-sub (6974eff9…)` `no_monthly_history` `coverageState:collection_failed` `lastIngestion 429 2026-07-25`. Monthly history uses a **12-month Query costing ~12 QPU** and hit the tenant `429` (throttle doc § Diagnosis: 5 direct 429 checks proved why ledger + `next_allowed_at` are needed); daily chunks at **1– месяца** succeeded later. `DailyAmortizedCost` still starts **117 days after** `DailyActualCost` (C-57). Fix is a targeted **monthly backfill retry / daily-rollup-as-monthly fallback** (audit `FLUX-B-011`/`C-53`), not a FOCUS toggle. `GET /api/reports/fiscal-outlook` `historyMonths >= 1` + `15/22 → 16/22` + band `$1.555M–$3.493M` narrowing is the signal the fix worked. Re-imaging `dev host 192.0.2.10` is explicitly out of scope per throttling doc § Operational notes.
+- **Without FOCUS, a subscription is still covered for daily MTD** — `cost-reconciliation` shows the daily 14-day Query path succeeding for it. Losing FOCUS costs `EffectiveCost` precision, not the subscription.
+- **The FY exclusion is monthly history, not FOCUS** — `GET /api/reports/fiscal-outlook` reports such a subscription as `no_monthly_history` with `coverageState: collection_failed` when its monthly query was throttled (HTTP 429). Monthly history uses a **12-month Query costing ~12 QPU** and hit the tenant `429` (throttle doc § Diagnosis: 5 direct 429 checks proved why ledger + `next_allowed_at` are needed); daily chunks succeeded later. `DailyAmortizedCost` still starts **117 days after** `DailyActualCost` (C-57). Fix is a targeted **monthly backfill retry / daily-rollup-as-monthly fallback** (audit `FLUX-B-011`/`C-53`), not a FOCUS toggle. `GET /api/reports/fiscal-outlook` `historyMonths >= 1`, one more covered subscription, and a narrower projection band are the signal the fix worked.
 
 ## 9. Operational notes
 

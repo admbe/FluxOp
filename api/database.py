@@ -1097,7 +1097,7 @@ class FluxDatabase(VirtualTagsMixin, CostHistoryMixin, RightsizingMixin, Telemet
 
     # FORBIDDEN PATTERN: CREATE OR REPLACE TABLE <name> AS <CTE over large file>
     # segfaults DuckDB 1.4.5 — the native process dies with SIGSEGV on
-    # connection.close() when the CTE scans the 9.4 GB prod file (even
+    # connection.close() when the CTE scans a large production file (even
     # duckdb.connect in raw Python crashes; no try/except can catch it).
     # Do NOT call _refresh_materialized_tables_internal() from init() or
     # any boot path that may touch a large prod file. Keep the materialized
@@ -3154,7 +3154,7 @@ class FluxDatabase(VirtualTagsMixin, CostHistoryMixin, RightsizingMixin, Telemet
                     db.execute(f"DROP VIEW {table_name}")
             # (Re)create the four materialized tables with current data.
             # SAFETY: _refresh_materialized_tables_internal segfaults on the
-            # 9.4 GB prod file (DuckDB 1.4.5 close after CREATE OR REPLACE
+            # large production file (DuckDB 1.4.5 close after CREATE OR REPLACE
             # TABLE AS <CTE>). That crash is native SIGSEGV — no Python
             # except can catch it — so skip the refresh inside init(). The
             # semantic + focus paths remain correct; explicit

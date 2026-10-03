@@ -8,7 +8,7 @@
 
 This document is the first discovery artifact for the interim PostgreSQL + DuckDB migration plan. It captures what exists in the repository today, where the mutable state currently lives, and which code paths are the likely migration boundaries.
 
-> **DB realities (evidence):** dev host `data/flux.duckdb` **22 MB**; prod export `~/flux-prod-20260808.duckdb` (symlinked `data/flux-prod.duckdb`) **9.4 GB** on the dev host `192.0.2.10` — that host also answers as `flux.example.com` but **only inside the Contoso VPN/prod subnet**; there is no public DNS for it in this workspace. DuckDB is single-writer: concurrent Rill (`8786`) or a second Flux process on `data/flux.duckdb.writer.lock`/`*.wal` truncates the copy — recovery is `CHECKPOINT` before `cp`. App Service persistence `/home/data/flux.duckdb`; `WEBSITE_RUN_FROM_PACKAGE=1` avoids rsync contention. Dev host `flux.service` (systemd on the dev host) is optional dev runner only; prod runners are **Azure App Service WebJobs**.
+> **Single writer:** DuckDB is single-writer (`data/flux.duckdb.writer.lock` plus a transient `*.wal`): a second process such as Rill opening the same file contends for the lock, so run `CHECKPOINT` before copying the file. App Service persistence is `/home/data/flux.duckdb`; `WEBSITE_RUN_FROM_PACKAGE=1` avoids rsync contention. Production jobs run as **Azure App Service WebJobs**.
 
 > **Version contract (since `ca66a85`):** `azure-pipelines.yml` stamps `version.json` `2.0.0`+`ca66a85` from `$(Build.SourceVersion)` into both `frontend/dist/version.json` and `version.json` (step "Stamp build version" → `shortCommit` truncated to 7 → staged into zip); `api/config.py:_resolve_build_commit()` → `settings.build_commit`; `api/main.py` exposes it at `GET /api/health` (`commit`) + `GET /api/session` (`build` + `dataCurrency`); `frontend/src/components/Shell.tsx` renders header chip (`app-version-chip`, click-to-copy) + footer `v2.0.0 · ca66a85` (+ `data-currency-chip` alongside). See `docs/architecture.md`, `AGENTS.md`, `README.md`.
 
@@ -72,8 +72,8 @@ Implemented 2026-07-28 in `api/analytics_snapshot.py`:
   current behavior. Web falls back to direct reads until the first approved
   publication exists.
 
-Phase 6-7 production cutover completed 2026-07-29: publication version 1
-(1.17 GB) approved in Blob, and the web serves analytical reads from the
+Phase 6-7 production cutover completed: publication version 1
+approved in Blob, and the web serves analytical reads from the
 adopted snapshot (`analyticsReadMode: snapshot` in `/api/health`).
 Remaining: removing the direct-read web fallback once snapshot mode has
 soaked.

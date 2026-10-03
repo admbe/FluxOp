@@ -264,7 +264,7 @@ The throttling work should be considered complete when:
 ## Operational notes
 
 - **Build / version:** `2.0.0` + `ca66a85` (`version.json` → `settings.build_commit` → `GET /api/health` `commit`).
-- **Ports & hosts:** dev `8765` on `192.0.2.10` (`flux.example.com` inside the corporate VPN), Rill `8786`, prod `0.0.0.0:8000`. DuckDB is single-writer (`writer.lock`/`*.wal`); `CHECKPOINT` before any file copy.
+- **Ports:** dev `8765`, Rill `8786`, prod `0.0.0.0:8000`. DuckDB is single-writer (`writer.lock`/`*.wal`); `CHECKPOINT` before any file copy.
 - **Pipeline safety-net** (`72bfcdd`): additive `az webapp config appsettings set` reapplies `FLUX_HOST`, `FLUX_PORT`, `WEBSITE_SKIP_RUNNING_KUDUAGENT`, `FLUX_AUTH_MODE` on every deploy; never use ARM `GET /config/appsettings` for read-modify-write (must be `POST /config/appsettings/list`).
 - **Snapshot reads:** throttle and cost-history state is operational (PostgreSQL `throttle_state`/`cost_history_*`); `daily_cost_history` is analytical and snapshot-published — web reads the last approved snapshot.
 

@@ -4,7 +4,7 @@
 
 One index for everything: architecture, data ingestion, FinOps methods, AI, and operations. Start with the [project README](../README.md) for product scope and quick start, or [fluxop.ai](https://fluxop.ai) for the product overview.
 
-**Ports (authoritative):** Flux dev **`8765`** on `192.0.2.10` (`flux.example.com` inside the corporate VPN) — `FLUX_PORT`, `frontend/vite.config.ts` proxy, `playwright.config.ts` baseURL, `start-flux.ps1`; Rill dev **`8786`** (`rill/`); production `8000` (`FLUX_HOST=0.0.0.0`, `FLUX_PORT=8000` safety-net in `azure-pipelines.yml`). **Databases:** dev host dev `data/flux.duckdb` ~22 MB, prod snapshot `~/flux-prod-20260808.duckdb` ~9.4 GB; single-writer WAL/`data/flux.duckdb.writer.lock` contention with Rill (must `CHECKPOINT` before copy); App Service persistence is `/home/data/flux.duckdb`, not `wwwroot`; dev `flux.service` (systemd on the dev host) is optional — prod uses WebJobs.
+**Ports (authoritative):** Flux dev **`8765`** — `FLUX_PORT`, `frontend/vite.config.ts` proxy, `playwright.config.ts` baseURL, `start-flux.ps1`; Rill dev **`8786`** (`rill/`); production `8000` (`FLUX_HOST=0.0.0.0`, `FLUX_PORT=8000`). **Databases:** local `data/flux.duckdb`; duckDB is single-writer (`data/flux.duckdb.writer.lock` plus a transient `*.wal`): a second process such as Rill opening the same file contends for the lock, so run `CHECKPOINT` before copying the file. App Service persistence is `/home/data/flux.duckdb`, not `wwwroot`; production jobs run as WebJobs.
 
 ## Architecture and platform
 
@@ -12,7 +12,7 @@ One index for everything: architecture, data ingestion, FinOps methods, AI, and 
 |---|---|
 | [architecture.md](architecture.md) | System design, module boundaries, ports (`8765`/`8786`/`8000`), version/build contract (`2.0.0`+`60d6a54`), and the extension model |
 | [POSTGRES-DUCKDB-INTERIM-SCALING-PLAN.md](POSTGRES-DUCKDB-INTERIM-SCALING-PLAN.md) | The interim scaling architecture: DuckDB as the analytical engine, a PostgreSQL operational store, and immutable analytics snapshots |
-| [postgres-duckdb-migration-inventory.md](postgres-duckdb-migration-inventory.md) | Table-by-table state inventory backing the PostgreSQL transition (with 22 MB dev / 9.4 GB prod DB realities and WAL/`writer.lock` guidance) |
+| [postgres-duckdb-migration-inventory.md](postgres-duckdb-migration-inventory.md) | Table-by-table state inventory backing the PostgreSQL transition (with WAL/`writer.lock` guidance) |
 | [entra-managed-identity.md](entra-managed-identity.md) | Microsoft Entra setup: app roles, managed identity, and RBAC deployment checklist (with `azure-pipelines.yml` pipeline-stamping context) |
 
 ## Cost data and ingestion

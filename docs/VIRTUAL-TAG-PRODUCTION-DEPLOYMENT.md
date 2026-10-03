@@ -5,9 +5,9 @@ Operational state: `virtual_tag_overrides` / `virtual_tag_rule_audit` on the ope
 
 ## Current state
 
-`Tagging-Effort/dc2a_virtual_tag_overrides.json` contains 20,848 approved override values across 3,364 resources. The API limits one import request to 20,000 values, so the deployment script uses 5,000-value chunks by default.
+An approved override file can contain tens of thousands of values. The API limits one import request to 20,000 values, so the deployment script uses 5,000-value chunks by default.
 
-The workspace also contains three prior rollback records showing earlier production batches of 6,950, 6,950, and 6,948 applied values. Do not reapply the payload until the production read-back or import history confirms which values are already current. The import is an idempotent upsert, but reapplying it can overwrite newer manual/imported values and creates a more complicated rollback history.
+Earlier production batches leave rollback records. Do not reapply a payload until the production read-back or import history confirms which values are already current. The import is an idempotent upsert, but reapplying it can overwrite newer manual/imported values and creates a more complicated rollback history.
 
 ### Two-plane note
 

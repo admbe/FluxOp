@@ -2,7 +2,7 @@
 
 Iterates MATERIALIZED_TABLES, runs EXPLAIN on each CTE against an
 in-memory DuckDB (the safe shape that previously segfaulted only when the
-CTE scanned the 9.4 GB prod file and the connection was closed). Also
+CTE scanned a large production file and the connection was closed). Also
 asserts duckdb version is pinned to 1.4.5 and skips heavy fixture work
 when the large prod fixture is absent.
 """
@@ -27,12 +27,12 @@ class DuckDbCteNoSegfaultTests(unittest.TestCase):
     def test_materialized_ctes_explain_without_exception(self):
         from api.database import FluxDatabase
 
-        # The 9.4 GB fixture is only present on the dev host / prod exports; skip
+        # The large production fixture is only present on a developer machine; skip
         # the heavy fixture check when absent — the :memory: EXPLAIN still
         # proves the CTE is syntactically valid and does not segfault on
         # close in this build.
         prod_fixture = Path("data/flux-prod.duckdb")
-        alt_fixture = Path.home() / "flux-prod-20260808.duckdb"
+        alt_fixture = Path.home() / "flux-prod.duckdb"
         has_large_fixture = prod_fixture.exists() or alt_fixture.exists()
         if not has_large_fixture:
             # Explicitly note in verbose output that the large-file path

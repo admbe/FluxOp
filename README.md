@@ -79,11 +79,11 @@ Flux **`2.0.0`** is baked into `version.json` at pipeline time (step "Stamp buil
 
 | Surface | Port | Binding / host | Where configured |
 |---|---|---|---|
-| Flux dev (dev host) | `8765` | `192.0.2.10` (`flux.example.com` inside the corporate VPN) | `FLUX_PORT`, `frontend/vite.config.ts` proxy, `playwright.config.ts` baseURL, `start-flux.ps1`, `app.py` |
-| Rill dev | `8786` | same dev host | `rill/rill.yaml` (connector `duckdb`) — read-only explore |
+| Flux dev | `8765` | `127.0.0.1` | `FLUX_PORT`, `frontend/vite.config.ts` proxy, `playwright.config.ts` baseURL, `start-flux.ps1`, `app.py` |
+| Rill dev | `8786` | `127.0.0.1` | `rill/rill.yaml` (connector `duckdb`) — read-only explore |
 | Flux prod | `8000` | `0.0.0.0` inside App Service | pipeline additive safety-net `FLUX_HOST`, `FLUX_PORT`, `WEBSITE_SKIP_RUNNING_KUDUAGENT`, `FLUX_AUTH_MODE` |
 
-Dev-host databases: `data/flux.duckdb` **22 MB** (local). Prod export on same `192.0.2.10` at `~/flux-prod-20260808.duckdb` **9.4 GB** (symlinked as `data/flux-prod.duckdb`). Single-writer DuckDB: `data/flux.duckdb.writer.lock` + transient `*.wal` — if Rill or a second Flux process opens the same file, copy contention follows; recovery is `CHECKPOINT` before `cp`. Dev host `flux.service` (systemd on the dev host) is an optional dev runner only; production runners are **Azure App Service WebJobs** (continuous `flux-sync-worker` + triggered jobs).
+Local database: `data/flux.duckdb`. DuckDB is single-writer (`data/flux.duckdb.writer.lock` plus a transient `*.wal`): a second process such as Rill opening the same file contends for the lock, so run `CHECKPOINT` before copying the file. In production the analytical file lives at `/home/data/flux.duckdb` and the jobs run as **Azure App Service WebJobs** (continuous `flux-sync-worker` plus triggered jobs).
 
 ## Quick start
 
@@ -114,9 +114,9 @@ python .\app.py
 
 Open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
-> **Version chip + two-plane note:** the health check `curl http://127.0.0.1:8765/api/health | jq .commit` should return `60d6a54` and the Shell must show header chip + footer `v2.0.0 · 60d6a54`. If they mismatch the stamped `version.json` wasn't baked. The dev host is `192.0.2.10` (`flux.example.com` only inside the Contoso VPN) with the same port; Rill on `8786` is a read-only analytical explore over the local DuckDB file, not required for the pipeline. In prod the web serves analytical reads from immutable Blob snapshots (`FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot`); local `direct` mode keeps the `writer.lock` lease for dev.
+> **Version chip + two-plane note:** the health check `curl http://127.0.0.1:8765/api/health | jq .commit` should return `60d6a54` and the Shell must show header chip + footer `v2.0.0 · 60d6a54`. If they mismatch the stamped `version.json` wasn't baked. Rill on `8786` is a read-only analytical explore over the local DuckDB file, not required for the pipeline. In prod the web serves analytical reads from immutable Blob snapshots (`FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot`); local `direct` mode keeps the `writer.lock` lease for dev.
 
-The launcher builds the frontend when needed (dev host `192.0.2.10` / `flux.example.com` inside the corporate VPN — same port `8765`):
+The launcher builds the frontend when needed (port `8765`):
 
 ```powershell
 .\\start-flux.ps1
@@ -405,7 +405,7 @@ Interactive API documentation is available at `/docs`.
 
 ## Data model
 
-**Two-plane split:** operational state in **PostgreSQL** (`FLUX_OPERATIONAL_DATABASE_ENABLED=true` in prod, `OperationalStore` pooled `pg8000`, `pg_try_advisory_lock(hashtext('flux-duckdb-writer'))` lease for the singleton writer, `analytics_apply_jobs`/`analytics_publications` + staged-payload registry, `throttle_state`, sync claims + retry state) — decomposed into domain mixins `api/virtual_tags_store.py`, `api/cost_history_store.py`, `api/rightsizing_store.py`, `api/telemetry_store.py` behind the `FluxDatabase` facade (report/intelligence split pending). **Analytical state** in **DuckDB** (`data/flux.duckdb` default — **22 MB on the dev host `192.0.2.10`**, prod export `~/flux-prod-20260808.duckdb` **9.4 GB**; `duckdb==1.4.5` exact-pinned, single-writer `*.wal`/`data/flux.duckdb.writer.lock` contention with Rill `8786` (dev-only lab, see `rill/rill.yaml`), `CHECKPOINT` before any copy; App Service persistence `/home/data/flux.duckdb`, `WEBSITE_RUN_FROM_PACKAGE=1`). In `FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot` the web reads an immutable Blob snapshot via `AnalyticsSnapshotManager` (lock-free); `direct` keeps the lease-guarded read path for dev.
+**Two-plane split:** operational state in **PostgreSQL** (`FLUX_OPERATIONAL_DATABASE_ENABLED=true` in prod, `OperationalStore` pooled `pg8000`, `pg_try_advisory_lock(hashtext('flux-duckdb-writer'))` lease for the singleton writer, `analytics_apply_jobs`/`analytics_publications` + staged-payload registry, `throttle_state`, sync claims + retry state) — decomposed into domain mixins `api/virtual_tags_store.py`, `api/cost_history_store.py`, `api/rightsizing_store.py`, `api/telemetry_store.py` behind the `FluxDatabase` facade (report/intelligence split pending). **Analytical state** in **DuckDB** (`data/flux.duckdb` default; `duckdb==1.4.5` exact-pinned, single-writer `*.wal`/`data/flux.duckdb.writer.lock` contention with Rill `8786` (dev-only lab, see `rill/rill.yaml`), `CHECKPOINT` before any copy; App Service persistence `/home/data/flux.duckdb`, `WEBSITE_RUN_FROM_PACKAGE=1`). In `FLUX_ANALYTICS_SNAPSHOT_MODE=snapshot` the web reads an immutable Blob snapshot via `AnalyticsSnapshotManager` (lock-free); `direct` keeps the lease-guarded read path for dev.
 
 - **PostgreSQL operational tables** (control plane): `azure_integration`, `sync_runs`, `sync_source_runs`, `source_sync_state`, `cost_history_runs`/`cost_history_scope_runs`/`cost_history_request_attempts`, `cost_details_backfill_scopes`, `focus_import_runs`, `throttle_state`, `analytics_apply_jobs`, `analytics_publications`, `cost_anomaly_reviews`, `intelligence_usage_events`/`intelligence_transcript_events`, `analytics_staging_directory` + staged payloads under `FLUX_ANALYTICS_STAGING_DIRECTORY`.
 

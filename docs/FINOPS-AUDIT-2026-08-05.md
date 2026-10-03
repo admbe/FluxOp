@@ -202,9 +202,9 @@ Accounting-source inventory reviewed:
 
 ## 3. High-variance justifications
 
-### 4,400 findings and approximately 9.4K monthly savings
+### Finding counts versus valued savings
 
-Those values do not form a valid per-action average. The count includes detected,
+A total finding count and a total monthly saving do not form a valid per-action average. The count includes detected,
 governance, evidence-needed, subscription-scoped, unvalued, and deduplicated
 findings. The governed savings numerator includes only valued rows and then takes
 one non-overlapping value per resource. The corrected contract exposes the valued
@@ -213,9 +213,9 @@ per **valued** item, inspect micro-opportunity thresholds and source currency; i
 it is low only per **detected** item, the variance is presentation/coverage, not
 arithmetic.
 
-### Approximately 49K monthly VM spend and 3.1K modeled savings
+### VM spend versus modeled savings
 
-A blanket 20% benchmark implies about 9.8K/month only if all 49K is eligible,
+A blanket 20% savings benchmark applies to total VM spend only if all of it is eligible,
 on-demand, continuously used, economically coverable, and non-overlapping after
 rightsizing. Flux currently excludes or zeros:
 
@@ -227,14 +227,14 @@ rightsizing. Flux currently excludes or zeros:
 - Advisor scenarios, because they may overlap Flux RI/SP/resize scenarios; and
 - unmodeled Savings Plan concurrency because the current engine is monthly.
 
-Therefore 3.1K may be mathematically consistent with the modeled subset while
+Therefore a modeled saving well below that benchmark may be mathematically consistent with the modeled subset while
 still being an incomplete estimate of estate potential. The new modeled baseline
 and savings-rate fields make the distinction testable. The target control is:
 
 `modeled savings + explicitly unmodeled potential = total eligible economic baseline`
 
 with every exclusion assigned a dollar amount and reason. A production rerun is
-required to attribute the exact 49K across those buckets; no conclusion about the
+required to attribute the spend across those buckets; no conclusion about the
 specific estate variance should be made from count data alone.
 
 ### Billing latency and 401 exclusions

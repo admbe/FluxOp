@@ -153,16 +153,9 @@ to prevent consecutive deploys from resolving to different patch builds.
 A floating range (`>=1.3,<1.5`) caused five corruption incidents in five days
 when different engine builds wrote and checkpointed the same on-disk file.
 
-**Dev vs prod databases and file contention:**
+**Databases and file contention:** locally the analytical store is `data/flux.duckdb`. DuckDB is single-writer (`data/flux.duckdb.writer.lock` plus a transient `*.wal`): a second process such as Rill opening the same file contends for the lock, so run `CHECKPOINT` before copying the file. Production persistence lives at `/home/data/flux.duckdb` on App Service (`FLUX_DUCKDB_PATH`), not inside `wwwroot`; `WEBSITE_RUN_FROM_PACKAGE=1` avoids rsync contention.
 
-| Scope | Path / host | Size (observed 2026-08-08) | Notes |
-|---|---|---|---|
-| Dev (dev host) | `data/flux.duckdb` on the dev host (`192.0.2.10`) | ~22 MB | Local analytical store; `data/flux.duckdb.writer.lock` guards the singleton write lease; `*.wal` appears transiently and must be `CHECKPOINT`'d before copy/backup |
-| Prod snapshot exported to the dev host | `~/flux-prod-20260808.duckdb` (symlinked from `data/flux-prod.duckdb`) | ~9.4 GB on the dev host (`flux.example.com` maps to `192.0.2.10` only inside the Contoso VPN/prod subnet; no public `flux.example.com` in this workspace) | Full estate; copied under writer lease + `CHECKPOINT`; do not `cp` while WAL is dirty |
-
-DuckDB is **single-writer**: any concurrent `Rill` (port `8786`) or second Flux process that opens the same file read-only will block on `writer.lock` / WAL. In dev this surfaces as 22 MB vs an expected 9.4 GB mismatch after an interrupted Rill import — recovery is `CHECKPOINT` then copy, or discard the truncated file. Production persistence lives at `/home/data/flux.duckdb` on App Service (`FLUX_DUCKDB_PATH`), not inside `wwwroot`; `WEBSITE_RUN_FROM_PACKAGE=1` avoids rsync contention.
-
-Dev systemd (dev host): the desktop dev instance is managed by `flux.service` on the dev host only when the developer runs it there; typical dev host dev is `python app.py` or `start-flux.ps1` foreground, not systemd. Production runners are **Azure App Service WebJobs** (continuous `flux-sync-worker`, triggered `flux-cost-history`, etc.), not `flux.service`.
+Production runners are **Azure App Service WebJobs** (continuous `flux-sync-worker`, triggered `flux-cost-history`, etc.); a local systemd unit is optional for development.
 
 ### Azure provider
 
@@ -287,4 +280,4 @@ Before broader cloud production, add centralized observability,
 regularly test database restoration, and introduce an appropriate shared operational
 store before enabling multiple active application instances.
 
-**Ports and hosts:** dev Flux `8765` on `192.0.2.10` (`flux.example.com` inside the corporate VPN), Rill `8786`, production `8000` inside App Service. **DB sizes:** dev host dev `data/flux.duckdb` ~22 MB (single-writer; WAL/`writer.lock` contention with Rill; `CHECKPOINT` before copy), prod snapshot `~/flux-prod-20260808.duckdb` ~9.4 GB. Dev `flux.service` (systemd on the dev host) is optional; prod uses WebJobs.
+**Ports:** dev Flux `8765`, Rill `8786`, production `8000` inside App Service. DuckDB is single-writer (`data/flux.duckdb.writer.lock` plus a transient `*.wal`): a second process such as Rill opening the same file contends for the lock, so run `CHECKPOINT` before copying the file.

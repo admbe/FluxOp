@@ -1,0 +1,9 @@
+# Test/CI-only dependencies. NOT vendored into the App Service deployment —
+# the deploy job packages requirements.txt alone, so nothing here reaches
+# prod. Keep runtime deps out of this file.
+#
+# fastapi.testclient (used by tests/test_api_integration.py) is a thin wrapper
+# over starlette.testclient, which imports httpx at module load. The CI gate
+# failed on a clean container the first time it actually ran because httpx was
+# only ever present on dev machines by accident.
+httpx>=0.27,<1

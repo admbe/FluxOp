@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" role="img" aria-label="Flux">
+  <circle cx="100" cy="20" r="9" fill="#0f9d8c"></circle>
+  <path d="M100 28 V48" stroke="#0f9d8c" stroke-width="9" stroke-linecap="round"></path>
+  <rect x="18" y="84" width="16" height="38" rx="8" fill="#0f9d8c"></rect>
+  <rect x="166" y="84" width="16" height="38" rx="8" fill="#0f9d8c"></rect>
+  <rect x="38" y="46" width="124" height="108" rx="30" fill="#0f9d8c"></rect>
+  <rect x="58" y="74" width="84" height="54" rx="24" fill="#0b3d38"></rect>
+  <circle cx="80" cy="101" r="9" fill="#5eead4"></circle>
+  <circle cx="120" cy="101" r="9" fill="#5eead4"></circle>
+</svg>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fcfdfc" />
+    <meta
+      name="description"
+      content="Flux — focused Azure inventory and FinOps intelligence."
+    />
+    <!-- Without these the catch-all route answers /favicon.ico with index.html,
+         so the browser kept showing the Microsoft mark it picked up from the
+         Entra sign-in redirect. Same icons as the marketing site. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      (() => {
+        const saved = localStorage.getItem("flux-theme");
+        const preference = saved === "dark" ? "dark" : "light";
+        const resolved = preference;
+        const root = document.documentElement;
+        root.classList.toggle("dark", resolved === "dark");
+        root.dataset.themePreference = preference;
+        root.dataset.theme = resolved;
+        // The dark variant has to be carried here too, matching applyTheme in
+        // theme.ts: graphite-deep is the plain .dark block, anything else is an
+        // override attribute. Without this a vibe-code user paints graphite
+        // deep until React mounts and corrects it.
+        const variant = localStorage.getItem("flux-theme-variant");
+        if (resolved === "dark" && variant && variant !== "graphite-deep") {
+          root.dataset.variant = variant;
+        }
+        root.style.colorScheme = resolved;
+        // Follow the resolved theme rather than pinning one value, or mobile
+        // browser chrome renders the opposite theme's colour around the app.
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.content = resolved === "dark"
+            ? (root.dataset.variant === "vibe-code" ? "#0d0e15" : "#08090c")
+            : "#fcfdfc";
+        }
+      })();
+    </script>
+    <title>Flux</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

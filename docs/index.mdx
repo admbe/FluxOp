@@ -1,0 +1,42 @@
+---
+title: "Flux documentation"
+description: "Governed evidence, analyzed. — v2.0.0 (ca66a85); version.json stamped at build time, build_commit via /api/health + /api/session, header chip + footer."
+---
+
+# Governed cloud cost intelligence
+
+Flux brings cloud inventory, cost, telemetry, optimization opportunities, and
+financial planning into one governed FinOps workspace. Recommendations retain
+their source evidence and require explicit human approval before execution.
+
+> **2.0.0 · ca66a85** — `frontend/dist/version.json` + `version.json` stamped at build time from `$(Build.SourceVersion)`; `settings.build_commit` (`api/config.py`) → `GET /api/health` (`commit`) and `GET /api/session` (`build` + `dataCurrency`); Shell header chip (click-to-copy) + footer `v2.0.0 · ca66a85`. Pipeline step "Stamp build version" is the source of truth.
+
+## Ports and environments
+
+| Surface | Port | Host / binding | Source |
+|---|---|---|---|
+| Flux dev (dev host) | `8765` | `192.0.2.10` (`flux.example.com` inside the corporate VPN) | `FLUX_PORT` default, `frontend/vite.config.ts` proxy, `playwright.config.ts` baseURL, `start-flux.ps1`, `app.py` |
+| Rill dev | `8786` | same dev host | `rill/rill.yaml` (`duckdb` connector) — read-only explore, not a prod dependency |
+| Flux prod | `8000` | `0.0.0.0` inside App Service | `azure-pipelines.yml` additive safety-net (`FLUX_HOST`, `FLUX_PORT`, `WEBSITE_SKIP_RUNNING_KUDUAGENT`, `FLUX_AUTH_MODE`) |
+
+## Start here
+
+- [Architecture](/docs/architecture)
+- [Microsoft Entra and managed identity setup](/docs/entra-managed-identity)
+- [Azure Cost Management throttling](/docs/AZURE-COST-MANAGEMENT-THROTTLING)
+
+## FinOps capabilities
+
+- [Flux Intelligence and Ask Flux](/docs/FLUX-INTELLIGENCE)
+- [Flux signal rules](/docs/FLUX-SIGNAL-RULES)
+- [FOCUS cost ingestion](/docs/FOCUS-COST-INGESTION)
+- [Financial planning forecast method](/docs/FINANCIAL-PLANNING-FORECAST-METHOD)
+- [FinOps rule trade-off simulator](/docs/FINOPS-RULE-TRADEOFF-SIMULATOR)
+- [Virtual tags](/docs/VIRTUAL-TAGS)
+
+## Product status
+
+- [Feature checklist](/docs/FEATURE-CHECKLIST)
+- [Reporting parity](/docs/REPORTING-PARITY)
+- [PostgreSQL and DuckDB migration inventory](/docs/postgres-duckdb-migration-inventory) — current DB sizes (dev host 22 MB @ `data/flux.duckdb`, prod snapshot 9.4 GB), WAL/`writer.lock` contention, `CHECKPOINT` + `flux.service` operational notes
+- [Architecture — build and ports](/docs/architecture) — `2.0.0` + `ca66a85`, dev `8765` on `192.0.2.10` / Rill `8786` / prod `8000`

@@ -1,0 +1,10 @@
+@keyframes idleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes idleTilt{0%,100%{transform:rotate(-0.5deg)}50%{transform:rotate(0.6deg)}}
+@keyframes idlePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes computeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes computeTilt{from{transform:rotate(-0.8deg)}to{transform:rotate(0.8deg)}}
+@keyframes computePulse{from{transform:scale(1)}to{transform:scale(1.18)}}
+@keyframes statusBars{0%{transform:scaleY(.45)}25%{transform:scaleY(1)}50%{transform:scaleY(.6)}75%{transform:scaleY(.9)}100%{transform:scaleY(.45)}}
+@keyframes scan{0%{transform:translateY(-18px)}100%{transform:translateY(18px)}}
+@keyframes thinkingEyes{from{transform:translate(-1.8px,0)}to{transform:translate(1.8px,0)}}
+@media (prefers-reduced-motion:reduce){#fluxBotWrap *{animation:none !important;transition:none !important}}

@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+.tmp/
+tmp/
+in/cost-management/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Runtime data
+data/*.duckdb
+data/*.duckdb.wal
+data/*.tmp
+
+# Locally preserved legacy application
+Archived/
+
+# Local environment
+.env
+.env.*
+!.env.example
+Provider.txt
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.lnk
+
+# Local credentials and agent configuration (never commit)
+auth/
+.sqlinstall/
+openmcode.json
+.py
+
+# Local working material and artifacts
+Instruct/
+New_Features/
+Perf-Diag/
+Tagging-Effort/
+design/
+1-vortex_1.html
+*.xlsx
+*.zip
+flux-desktop-landing-options/
+flux-mobile-landing-options/
+flux-landing-examples/
+frontend/.playwright/
+frontend/test-results/
+.auth/
+
+# Build stamps are pipeline-written, never committed — a committed stamp
+# freezes the version chip (served ca66a85 for every deploy Aug 9-15).
+/version.json
+frontend/public/version.json
